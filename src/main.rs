@@ -115,30 +115,27 @@ impl eframe::App for MyEGuiApp {
         egui::CentralPanel::default().show(ctx, |ui|{
             ui.heading("Guitar Scales");
 
+            // render toolbar:
             ui.horizontal(|ui|{
 
-                let mut caption = &self.lookup_scale_str(self.scale_num);
                 ComboBox::from_label("scale")
-                    .selected_text(caption)
+                    .selected_text(&self.lookup_scale_str(self.scale_num))
                     .show_ui(ui, |inner_ui| {
-                        for scale in &self.scales {
-                            inner_ui.selectable_value(&mut caption, &scale.name, &scale.name);
+                        for i in 0..self.scales.len() {
+                            inner_ui.selectable_value(&mut self.scale_num, i, &self.scales[i].name);
                         }
                     });
-                self.scale_num = self.lookup_scale_num(&caption);
 
-
-                let mut caption = &self.lookup_note_str(self.scale_key);
                 ComboBox::from_label("key")
-                    .selected_text(caption)
+                    .selected_text(&self.lookup_note_str(self.scale_key))
                     .show_ui(ui, |inner_ui| {
-                        for note in &self.notes {
-                            inner_ui.selectable_value(&mut caption, note, note);
+                        for i in 0..self.notes.len() {
+                            inner_ui.selectable_value(&mut self.scale_key, i, &self.notes[i]);
                         }
                     });
-                self.scale_key = self.lookup_note_num(&caption);
             });
 
+            // render fret-board:
             StripBuilder::new(ui)
             .sizes(Size::exact(20.0), self.strings.len())
             .vertical(|mut strip| {   
@@ -149,22 +146,23 @@ impl eframe::App for MyEGuiApp {
                         .sizes(Size::remainder(), self.frets)
                         .horizontal(|mut strip| {
                             for fret in 0..(*&self.frets+1) {
+                                
                                 let note_as_int = &self.strings[i] + fret;
-                                let mut caption = &self.notes[note_as_int%&self.notes.len()];
+                                let caption = &self.notes[note_as_int%&self.notes.len()];
+
                                 if fret == 0 {
                                     strip.cell(|ui| {
                                         ComboBox::from_id_source(i)
                                         .selected_text(caption)
                                         .show_ui(ui, |inner_ui| {
-                                            for note in &self.notes {
-                                                inner_ui.selectable_value(&mut caption, note, note);
+                                            for ii in 0..self.notes.len() {
+                                                inner_ui.selectable_value(&mut self.strings[i], ii, &self.notes[ii]);
                                             }
                                         });
                                     });
-                                    self.strings[i] = (&self).lookup_note_num(&caption);
                                 } else {
                                     strip.cell(|ui| {
-                                        if(self.is_note_in_scale(note_as_int as i16)){
+                                        if self.is_note_in_scale(note_as_int as i16){
                                             ui.button(caption);
                                         } else {
                                             ui.label(caption);
