@@ -66,6 +66,14 @@ impl MyEGuiApp {
             }
         }
     }
+    pub fn is_note_root(&self, mut n:i16) -> bool {
+        n -= self.scale_key as i16;
+        while(n < 0) {
+            n += 12;
+        }
+        n %= 12;
+        n == 0
+    }
     pub fn is_note_in_scale(&self, mut n:i16) -> bool {
         n -= self.scale_key as i16;
         while(n < 0) {
@@ -112,69 +120,76 @@ impl Default for MyEGuiApp {
 impl eframe::App for MyEGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
-        egui::CentralPanel::default().show(ctx, |ui|{
+        let panel = egui::CentralPanel::default();
+        panel.show(ctx, |ui|{
             ui.heading("Guitar Scales");
-
             // render toolbar:
             ui.horizontal(|ui|{
-
-                ComboBox::from_label("scale")
-                    .selected_text(&self.lookup_scale_str(self.scale_num))
+                
+                ComboBox::from_id_source("scale")
+                    .selected_text(format!("{} scale", &self.lookup_scale_str(self.scale_num)))
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.scales.len() {
                             inner_ui.selectable_value(&mut self.scale_num, i, &self.scales[i].name);
                         }
                     });
 
-                ComboBox::from_label("key")
-                    .selected_text(&self.lookup_note_str(self.scale_key))
+                ComboBox::from_id_source("key")
+                    .selected_text(format!("key of {}", &self.lookup_note_str(self.scale_key)))
+                    .width(50.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.notes.len() {
                             inner_ui.selectable_value(&mut self.scale_key, i, &self.notes[i]);
                         }
                     });
-            });
-
-            // render fret-board:
-            StripBuilder::new(ui)
-            .sizes(Size::exact(20.0), self.strings.len())
-            .vertical(|mut strip| {   
-                for i in (0..*&self.strings.len()).rev() {
-                    strip.strip(|builder| {
-                        builder
-                        .size(Size::exact(115.0))
-                        .sizes(Size::remainder(), self.frets)
-                        .horizontal(|mut strip| {
-                            for fret in 0..(*&self.frets+1) {
-                                
-                                let note_as_int = &self.strings[i] + fret;
-                                let caption = &self.notes[note_as_int%&self.notes.len()];
-
-                                if fret == 0 {
-                                    strip.cell(|ui| {
-                                        ComboBox::from_id_source(i)
-                                        .selected_text(caption)
-                                        .show_ui(ui, |inner_ui| {
-                                            for ii in 0..self.notes.len() {
-                                                inner_ui.selectable_value(&mut self.strings[i], ii, &self.notes[ii]);
-                                            }
-                                        });
-                                    });
-                                } else {
-                                    strip.cell(|ui| {
-                                        if self.is_note_in_scale(note_as_int as i16){
-                                            ui.button(caption);
-                                        } else {
-                                            ui.label(caption);
-                                        }
-                                    });
-                                }
-                            }
-                        });
+                
+                ComboBox::from_id_source("frets")
+                    .selected_text(format!("{} frets", self.frets))
+                    .width(100.0)
+                    .show_ui(ui, |inner_ui| {
+                        for i in 4..25 {
+                            inner_ui.selectable_value(
+                                &mut self.frets,
+                                i,
+                                format!("{}",i));
+                        }
                     });
+                
+            });
+            ui.add_space(10.0);
+
+            egui::Grid::new("some_unique_id").show(ui, |ui| {
+                for i in (0..*&self.strings.len()).rev() {
+                    for fret in 0..(*&self.frets+1) {
+                                    
+                        let note_as_int = &self.strings[i] + fret;
+                        let caption = &self.notes[note_as_int%&self.notes.len()];
+
+                        if fret == 0 {
+                            ComboBox::from_id_source(i)
+                            .selected_text(caption)
+                            .show_ui(ui, |inner_ui| {
+                                for ii in 0..self.notes.len() {
+                                    inner_ui.selectable_value(&mut self.strings[i], ii, &self.notes[ii]);
+                                }
+                            });
+                        } else {
+                            if self.is_note_in_scale(note_as_int as i16){
+
+                                //ui.button(caption);
+                                if self.is_note_root(note_as_int as i16) {
+                                    ui.colored_label(Color32::WHITE, caption);
+                                } else {
+                                    ui.colored_label(Color32::GOLD, caption);
+                                }
+                            } else {
+                                ui.colored_label(Color32::DARK_GRAY, caption);
+                            }
+                        }
+                    }
+                    ui.end_row();
                 }
             });
-
         });
     }
 }
