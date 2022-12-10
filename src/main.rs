@@ -68,7 +68,7 @@ impl MyEGuiApp {
     }
     pub fn is_note_root(&self, mut n:i16) -> bool {
         n -= self.scale_key as i16;
-        while(n < 0) {
+        while n < 0 {
             n += 12;
         }
         n %= 12;
@@ -76,7 +76,7 @@ impl MyEGuiApp {
     }
     pub fn is_note_in_scale(&self, mut n:i16) -> bool {
         n -= self.scale_key as i16;
-        while(n < 0) {
+        while n < 0 {
             n += 12;
         }
         n %= 12;
@@ -157,11 +157,39 @@ impl eframe::App for MyEGuiApp {
                 
             });
             ui.add_space(10.0);
+            
+            let line = Shape::LineSegment{
+                points:[
+                    Pos2 {
+                        x:0f32,
+                        y:0f32,
+                    },
+                    Pos2 {
+                        x:500f32,
+                        y:500f32,
+                    },
+                ],
+                stroke:Stroke{
+                    width:1.,
+                    color:Color32::WHITE,
+                }
+            };
 
             egui::Grid::new("some_unique_id").show(ui, |ui| {
+                for fret in 0..(*&self.frets + 1) {
+                    ui.colored_label(Color32::WHITE, match fret {
+                        3|5|7|9|12|15|17|19 => {
+                            "•"
+                        },
+                        _ => {
+                            ""
+                        }
+                    });
+                }
+                ui.end_row();
                 for i in (0..*&self.strings.len()).rev() {
                     for fret in 0..(*&self.frets+1) {
-                                    
+                        
                         let note_as_int = &self.strings[i] + fret;
                         let caption = &self.notes[note_as_int%&self.notes.len()];
 
@@ -175,7 +203,6 @@ impl eframe::App for MyEGuiApp {
                             });
                         } else {
                             if self.is_note_in_scale(note_as_int as i16){
-
                                 //ui.button(caption);
                                 if self.is_note_root(note_as_int as i16) {
                                     ui.colored_label(Color32::WHITE, caption);
@@ -189,6 +216,17 @@ impl eframe::App for MyEGuiApp {
                     }
                     ui.end_row();
                 }
+                for fret in 0..(*&self.frets + 1) {
+                    ui.colored_label(Color32::WHITE, match fret {
+                        3|5|7|9|12|15|17|19 => {
+                            "•"
+                        },
+                        _ => {
+                            ""
+                        }
+                    });
+                }
+                ui.end_row();
             });
         });
     }
