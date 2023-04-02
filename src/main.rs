@@ -14,7 +14,7 @@ fn main(){
     let _result = eframe::run_native(
         "guitar-scales",
         eframe::NativeOptions::default(),
-        Box::new(|_cc| Box::new(MyEGuiApp::new())),
+        Box::new(|_cc| Box::new(FretboardApp::new())),
     );
 }
 
@@ -35,7 +35,7 @@ fn main() {
     ()
 }
 
-struct MyEGuiApp {
+struct FretboardApp {
     strings: Vec<usize>,
     frets: usize,
     scale_num: usize,
@@ -43,7 +43,7 @@ struct MyEGuiApp {
     scales: Vec<ScaleIntervals>,
     notes: Vec<String>,
 }
-impl MyEGuiApp {
+impl FretboardApp {
     fn new() -> Self {
         Self::default()
     }
@@ -82,8 +82,19 @@ impl MyEGuiApp {
         n %= 12;
         self.scales[self.scale_num].notes.iter().any(|note| *note == n as usize)
     }
+    pub fn fret_marker(&self, mut fret:usize) -> String {
+        let f:i32 = fret.try_into().unwrap_or(0) - 1;
+        match f {
+            3|5|7|9|12|15|17|19 => {
+                String::from("•")
+            },
+            _ => {
+                String::from("")
+            }
+        }
+    }
 }
-impl Default for MyEGuiApp {
+impl Default for FretboardApp {
     fn default() -> Self {
         Self {
             strings: vec![0,5,10,15,19,24],
@@ -117,15 +128,17 @@ impl Default for MyEGuiApp {
         }
     }
 }
-impl eframe::App for MyEGuiApp {
+impl eframe::App for FretboardApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
         let panel = egui::CentralPanel::default();
         panel.show(ctx, |ui|{
+
+            
             ui.heading("Guitar Scales");
             // render toolbar:
             ui.horizontal(|ui|{
-                
+
                 ComboBox::from_id_source("scale")
                     .selected_text(format!("{} scale", &self.lookup_scale_str(self.scale_num)))
                     .show_ui(ui, |inner_ui| {
@@ -158,35 +171,21 @@ impl eframe::App for MyEGuiApp {
             });
             ui.add_space(10.0);
             
-            let line = Shape::LineSegment{
-                points:[
-                    Pos2 {
-                        x:0f32,
-                        y:0f32,
-                    },
-                    Pos2 {
-                        x:500f32,
-                        y:500f32,
-                    },
-                ],
-                stroke:Stroke{
-                    width:1.,
-                    color:Color32::WHITE,
-                }
-            };
+            egui::Grid::new("some_unique_id")
+                //.striped(true)
+                .show(ui, |ui| {
 
-            egui::Grid::new("some_unique_id").show(ui, |ui| {
-                for fret in 0..(*&self.frets + 1) {
-                    ui.colored_label(Color32::WHITE, match fret {
-                        3|5|7|9|12|15|17|19 => {
-                            "•"
-                        },
-                        _ => {
-                            ""
-                        }
-                    });
+                // start first row
+
+                // "draw" fret markers by inserting Labels into the grid.
+                for fret in 0..(*&self.frets + 2) {
+                    ui.colored_label(Color32::WHITE, self.fret_marker(fret));
                 }
+                let y_top = ui.available_rect_before_wrap().bottom();
                 ui.end_row();
+
+
+                // "draw" each guitar string as a row in the grid
                 for i in (0..*&self.strings.len()).rev() {
                     for fret in 0..(*&self.frets+1) {
                         
@@ -201,32 +200,58 @@ impl eframe::App for MyEGuiApp {
                                     inner_ui.selectable_value(&mut self.strings[i], ii, &self.notes[ii]);
                                 }
                             });
-                        } else {
-                            if self.is_note_in_scale(note_as_int as i16){
-                                //ui.button(caption);
-                                if self.is_note_root(note_as_int as i16) {
-                                    ui.colored_label(Color32::WHITE, caption);
-                                } else {
-                                    ui.colored_label(Color32::GOLD, caption);
-                                }
-                            } else {
-                                ui.colored_label(Color32::DARK_GRAY, caption);
-                            }
                         }
+                        
+                        if self.is_note_in_scale(note_as_int as i16){
+                            //ui.button(caption);
+                            if self.is_note_root(note_as_int as i16) {
+                                ui.colored_label(Color32::WHITE, caption);
+                            } else {
+                                ui.colored_label(Color32::GOLD, caption);
+                            }
+                        } else {
+                            ui.small(RichText::new(caption).color(Color32::DARK_GRAY));
+                        }
+
                     }
                     ui.end_row();
                 }
+                let y_bottom = ui.available_rect_before_wrap().top();
+                
+                // a collaction of shapes to hold the lines we want to draw:
+                let mut shapes = Vec::new();
+
                 for fret in 0..(*&self.frets + 1) {
-                    ui.colored_label(Color32::WHITE, match fret {
-                        3|5|7|9|12|15|17|19 => {
-                            "•"
-                        },
-                        _ => {
-                            ""
+                    // "draw" the fret markers underneath the fret board
+                    ui.colored_label(Color32::WHITE, self.fret_marker(fret));
+
+                    if fret == 0 {
+                        continue;
+                    }
+                    // calculate placement of lines, and
+                    // store each line in shapes collection
+                    let x = ui.available_rect_before_wrap().left() - 20.;
+                    shapes.push(Shape::line_segment(
+                        [
+                            Pos2 { x:x, y:y_top },
+                            Pos2 { x:x, y:y_bottom },
+                        ],
+                        Stroke{
+                            width: match fret {
+                                1 => 2.,
+                                _ => 1.
+                            },
+                            color: match fret {
+                                1 => Color32::WHITE,
+                                _ => Color32::DARK_GRAY,
+                            }
                         }
-                    });
+                    ));
                 }
                 ui.end_row();
+                
+                // draw lines:
+                ui.painter().extend(shapes);
             });
         });
     }
