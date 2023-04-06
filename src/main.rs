@@ -5,6 +5,8 @@ use egui::*;
 use egui_extras::{StripBuilder, Size};
 use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 mod guitar;
 use guitar::*;
@@ -34,6 +36,18 @@ fn main() {
 
     ()
 }
+#[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
+enum FretMarker {
+    None,
+    Dots,
+    Numbers,
+}
+#[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
+enum NoteMarker {
+    Notes,
+    NotesInKey,
+    Dots,
+}
 
 struct FretboardApp {
     strings: Vec<usize>,
@@ -42,6 +56,8 @@ struct FretboardApp {
     scale_key: usize,
     scales: Vec<ScaleIntervals>,
     notes: Vec<String>,
+    fret_marks: FretMarker,
+    note_marks: NoteMarker,
 }
 impl FretboardApp {
     fn new() -> Self {
@@ -58,7 +74,7 @@ impl FretboardApp {
     }
     pub fn lookup_scale_str(&self, n:usize) -> String {
         match n {
-            x if x >= self.scales.len() || x < 0 => {
+            x if x >= self.scales.len() => {
                 String::from("")
             },
             _ => {
@@ -82,15 +98,17 @@ impl FretboardApp {
         n %= 12;
         self.scales[self.scale_num].notes.iter().any(|note| *note == n as usize)
     }
-    pub fn fret_marker(&self, mut fret:usize) -> String {
+    pub fn fret_marker(&self, fret:usize) -> String {
         let f:i32 = fret.try_into().unwrap_or(0) - 1;
         match f {
             3|5|7|9|12|15|17|19 => {
-                String::from("•")
+                match self.fret_marks {
+                    FretMarker::Numbers => f.to_string(),
+                    FretMarker::Dots => String::from("•"),
+                    FretMarker::None => String::from(""),
+                }
             },
-            _ => {
-                String::from("")
-            }
+            _ => String::from("")
         }
     }
 }
@@ -102,14 +120,14 @@ impl Default for FretboardApp {
             scale_key: 8,
             scale_num: 0,
             scales: vec![
-                music_scale!("pentaminor", 0, 3, 5, 7, 10, 12),
-                music_scale!("pentamajor", 0, 2, 4, 7, 9, 12),
+                music_scale!("pentatonic minor", 0, 3, 5, 7, 10, 12),
+                music_scale!("pentatonic major", 0, 2, 4, 7, 9, 12),
                 music_scale!("minor", 0, 2, 3, 5, 7, 8, 10, 12),
                 music_scale!("major", 0, 2, 4, 5, 7, 9, 11, 12),
                 music_scale!("dorian", 0, 2, 3, 5, 7, 9, 10, 12),
                 music_scale!("phrygian", 0, 1, 3, 5, 7, 8, 10, 12),
                 music_scale!("lydian", 0, 2, 4, 6, 7, 9, 11, 12),
-                music_scale!("bluesminor", 0, 3, 5, 6, 7, 10, 12),
+                music_scale!("blues minor", 0, 3, 5, 6, 7, 10, 12),
             ],
             notes: vec![
                 "E ".to_string(),
@@ -125,6 +143,8 @@ impl Default for FretboardApp {
                 "D ".to_string(),
                 "D#".to_string(),
             ],
+            fret_marks: FretMarker::Dots,
+            note_marks: NoteMarker::NotesInKey,
         }
     }
 }
@@ -141,9 +161,14 @@ impl eframe::App for FretboardApp {
 
                 ComboBox::from_id_source("scale")
                     .selected_text(format!("{} scale", &self.lookup_scale_str(self.scale_num)))
+                    .width(200.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.scales.len() {
-                            inner_ui.selectable_value(&mut self.scale_num, i, &self.scales[i].name);
+                            inner_ui.selectable_value(
+                                &mut self.scale_num,
+                                i,
+                                &self.scales[i].name
+                            );
                         }
                     });
 
@@ -152,7 +177,11 @@ impl eframe::App for FretboardApp {
                     .width(50.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.notes.len() {
-                            inner_ui.selectable_value(&mut self.scale_key, i, &self.notes[i]);
+                            inner_ui.selectable_value(
+                                &mut self.scale_key,
+                                i,
+                                &self.notes[i]
+                            );
                         }
                     });
                 
@@ -164,7 +193,33 @@ impl eframe::App for FretboardApp {
                             inner_ui.selectable_value(
                                 &mut self.frets,
                                 i,
-                                format!("{}",i));
+                                format!("{}",i)
+                            );
+                        }
+                    });
+                
+                ComboBox::from_id_source("fret_marks")
+                    .selected_text(format!("{:?}", self.fret_marks))
+                    .width(100.0)
+                    .show_ui(ui, |inner_ui|{
+                        for fm in FretMarker::iter() {
+                            inner_ui.selectable_value(
+                                &mut self.fret_marks,
+                                fm,
+                                format!("{:?}", fm),
+                            );
+                        }
+                    });
+                ComboBox::from_id_source("note_marks")
+                    .selected_text(format!("{:?}", self.note_marks))
+                    .width(100.0)
+                    .show_ui(ui, |inner_ui|{
+                        for nm in NoteMarker::iter() {
+                            inner_ui.selectable_value(
+                                &mut self.note_marks,
+                                nm,
+                                format!("{:?}", nm),
+                            );
                         }
                     });
                 
@@ -175,10 +230,11 @@ impl eframe::App for FretboardApp {
                 //.striped(true)
                 .show(ui, |ui| {
 
+                let num_cols = self.frets + 2;
                 // start first row
 
                 // "draw" fret markers by inserting Labels into the grid.
-                for fret in 0..(*&self.frets + 2) {
+                for fret in 0..num_cols {
                     ui.colored_label(Color32::WHITE, self.fret_marker(fret));
                 }
                 let y_top = ui.available_rect_before_wrap().bottom();
@@ -203,13 +259,22 @@ impl eframe::App for FretboardApp {
                         }
                         
                         if self.is_note_in_scale(note_as_int as i16){
-                            //ui.button(caption);
+                            
+                            let caption = match self.note_marks {
+                                NoteMarker::Notes|NoteMarker::NotesInKey => caption,
+                                NoteMarker::Dots => "•",
+                                _ => "",
+                            };
                             if self.is_note_root(note_as_int as i16) {
                                 ui.colored_label(Color32::WHITE, caption);
                             } else {
                                 ui.colored_label(Color32::GOLD, caption);
                             }
                         } else {
+                            let caption = match self.note_marks {
+                                NoteMarker::Notes => caption,
+                                _ => "",
+                            };
                             ui.small(RichText::new(caption).color(Color32::DARK_GRAY));
                         }
 
@@ -221,7 +286,7 @@ impl eframe::App for FretboardApp {
                 // a collaction of shapes to hold the lines we want to draw:
                 let mut shapes = Vec::new();
 
-                for fret in 0..(*&self.frets + 1) {
+                for fret in 0..num_cols {
                     // "draw" the fret markers underneath the fret board
                     ui.colored_label(Color32::WHITE, self.fret_marker(fret));
 
