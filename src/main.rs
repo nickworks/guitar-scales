@@ -44,8 +44,9 @@ enum FretMarker {
 }
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
 enum NoteMarker {
-    Notes,
+    AllNotes,
     NotesInKey,
+    Numbers,
     Dots,
 }
 
@@ -56,6 +57,7 @@ struct FretboardApp {
     scale_key: usize,
     scales: Vec<ScaleIntervals>,
     notes: Vec<String>,
+    numbers: Vec<String>,
     fret_marks: FretMarker,
     note_marks: NoteMarker,
 }
@@ -115,21 +117,28 @@ impl FretboardApp {
 impl Default for FretboardApp {
     fn default() -> Self {
         Self {
-            strings: vec![0,5,10,15,19,24],
+            strings: vec![4,9,14,19,23,28],
             frets: 9,
-            scale_key: 8,
+            scale_key: 0,
             scale_num: 0,
             scales: vec![
+                // pentatonic scales (5-pitches)
                 music_scale!("pentatonic minor", 0, 3, 5, 7, 10, 12),
                 music_scale!("pentatonic major", 0, 2, 4, 7, 9, 12),
+                // heptatonic scales (6-pitches)
                 music_scale!("minor", 0, 2, 3, 5, 7, 8, 10, 12),
                 music_scale!("major", 0, 2, 4, 5, 7, 9, 11, 12),
                 music_scale!("dorian", 0, 2, 3, 5, 7, 9, 10, 12),
                 music_scale!("phrygian", 0, 1, 3, 5, 7, 8, 10, 12),
                 music_scale!("lydian", 0, 2, 4, 6, 7, 9, 11, 12),
+                // hexatonic scales (7-pitches)
                 music_scale!("blues minor", 0, 3, 5, 6, 7, 10, 12),
             ],
             notes: vec![
+                "C ".to_string(),
+                "C#".to_string(),
+                "D ".to_string(),
+                "D#".to_string(),
                 "E ".to_string(),
                 "F ".to_string(),
                 "F#".to_string(),
@@ -138,10 +147,20 @@ impl Default for FretboardApp {
                 "A ".to_string(),
                 "A#".to_string(),
                 "B ".to_string(),
-                "C ".to_string(),
-                "C#".to_string(),
-                "D ".to_string(),
-                "D#".to_string(),
+            ],
+            numbers: vec![
+                " R".to_string(),
+                "b2".to_string(),
+                " 2".to_string(),
+                "b3".to_string(),
+                " 3 ".to_string(),
+                " 4 ".to_string(),
+                "b5".to_string(),
+                " 5".to_string(),
+                "b6".to_string(),
+                " 6".to_string(),
+                "b7".to_string(),
+                " 7".to_string(),
             ],
             fret_marks: FretMarker::Dots,
             note_marks: NoteMarker::NotesInKey,
@@ -246,7 +265,11 @@ impl eframe::App for FretboardApp {
                     for fret in 0..(*&self.frets+1) {
                         
                         let note_as_int = &self.strings[i] + fret;
-                        let caption = &self.notes[note_as_int%&self.notes.len()];
+
+                        let num = (note_as_int + 12).checked_sub(self.scale_key).unwrap_or(0);
+
+                        let caption_number = &self.numbers[num%12];
+                        let caption = &self.notes[note_as_int%12]; // get note
 
                         if fret == 0 {
                             ComboBox::from_id_source(i)
@@ -261,8 +284,9 @@ impl eframe::App for FretboardApp {
                         if self.is_note_in_scale(note_as_int as i16){
                             
                             let caption = match self.note_marks {
-                                NoteMarker::Notes|NoteMarker::NotesInKey => caption,
+                                NoteMarker::AllNotes|NoteMarker::NotesInKey => caption,
                                 NoteMarker::Dots => "•",
+                                NoteMarker::Numbers => caption_number,
                                 _ => "",
                             };
                             if self.is_note_root(note_as_int as i16) {
@@ -272,7 +296,7 @@ impl eframe::App for FretboardApp {
                             }
                         } else {
                             let caption = match self.note_marks {
-                                NoteMarker::Notes => caption,
+                                NoteMarker::AllNotes => caption,
                                 _ => "",
                             };
                             ui.small(RichText::new(caption).color(Color32::DARK_GRAY));
