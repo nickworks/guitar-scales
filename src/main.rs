@@ -47,7 +47,6 @@ enum NoteMarker {
     AllNotes,
     NotesInKey,
     Numbers,
-    Dots,
 }
 
 struct FretboardApp {
@@ -100,17 +99,11 @@ impl FretboardApp {
         n %= 12;
         self.scales[self.scale_num].notes.iter().any(|note| *note == n as usize)
     }
-    pub fn fret_marker(&self, fret:usize) -> String {
+    pub fn fret_marker(&self, fret:usize) -> FretMarker {
         let f:i32 = fret.try_into().unwrap_or(0) - 1;
-        match f {
-            3|5|7|9|12|15|17|19 => {
-                match self.fret_marks {
-                    FretMarker::Numbers => f.to_string(),
-                    FretMarker::Dots => String::from("•"),
-                    FretMarker::None => String::from(""),
-                }
-            },
-            _ => String::from("")
+        return match f {
+            3|5|7|9|12|15|17|19 => self.fret_marks,
+            _ => FretMarker::None,
         }
     }
 }
@@ -135,32 +128,32 @@ impl Default for FretboardApp {
                 music_scale!("blues minor", 0, 3, 5, 6, 7, 10, 12),
             ],
             notes: vec![
-                "C ".to_string(),
+                "C".to_string(),
                 "C#".to_string(),
-                "D ".to_string(),
+                "D".to_string(),
                 "D#".to_string(),
-                "E ".to_string(),
-                "F ".to_string(),
+                "E".to_string(),
+                "F".to_string(),
                 "F#".to_string(),
-                "G ".to_string(),
+                "G".to_string(),
                 "G#".to_string(),
-                "A ".to_string(),
+                "A".to_string(),
                 "A#".to_string(),
-                "B ".to_string(),
+                "B".to_string(),
             ],
             numbers: vec![
-                " R".to_string(),
+                "R".to_string(),
                 "b2".to_string(),
-                " 2".to_string(),
+                "2".to_string(),
                 "b3".to_string(),
-                " 3 ".to_string(),
-                " 4 ".to_string(),
+                "3".to_string(),
+                "4".to_string(),
                 "b5".to_string(),
-                " 5".to_string(),
+                "5".to_string(),
                 "b6".to_string(),
-                " 6".to_string(),
+                "6".to_string(),
                 "b7".to_string(),
-                " 7".to_string(),
+                "7".to_string(),
             ],
             fret_marks: FretMarker::Dots,
             note_marks: NoteMarker::NotesInKey,
@@ -170,7 +163,31 @@ impl Default for FretboardApp {
 impl eframe::App for FretboardApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
+        let painter = Painter::new(
+            ctx.clone(),
+            LayerId {
+                id: Id::new("shapes_layer"),
+                order: Order::Background,
+            },
+            ctx.available_rect(),
+        );
+        
+        //egui::containers::Frame {
+        //    inner_margin:Margin::same(10f32),
+        //    outer_margin:Margin::same(10f32),
+        //    rounding:Rounding::same(5f32),
+        //    shadow:epaint::Shadow {
+        //        extrusion: 5f32,
+        //        color: Color32::BLACK,
+        //    },
+        //    fill:Color32::DARK_GRAY,
+        //    stroke:Stroke {
+        //        width: 1f32,
+        //        color: Color32::WHITE,
+        //    },
+        //}
         let panel = egui::CentralPanel::default();
+        
         panel.show(ctx, |ui|{
 
             
@@ -244,7 +261,9 @@ impl eframe::App for FretboardApp {
                 
             });
             ui.add_space(10.0);
-            
+
+            // draw the fretboard below
+
             egui::Grid::new("some_unique_id")
                 //.striped(true)
                 .show(ui, |ui| {
@@ -252,13 +271,36 @@ impl eframe::App for FretboardApp {
                 let num_cols = self.frets + 2;
                 // start first row
 
-                // "draw" fret markers by inserting Labels into the grid.
+                // paint fret-markers
                 for fret in 0..num_cols {
-                    ui.colored_label(Color32::WHITE, self.fret_marker(fret));
+                    //ui.colored_label(Color32::WHITE, self.fret_marker(fret));
+                    ui.centered_and_justified(|ui|{
+                        match self.fret_marker(fret) {
+                            FretMarker::Dots => {
+                                painter.circle_filled(
+                                    ui.available_rect_before_wrap().center(),
+                                    5f32,
+                                    Color32::WHITE,
+                                );
+                            },
+                            FretMarker::Numbers => {
+                                painter.text(
+                                    ui.available_rect_before_wrap().center(),
+                                    Align2::CENTER_CENTER,
+                                    (fret-1).to_string(),
+                                    FontId {
+                                        size: 12f32,
+                                        family: FontFamily::Monospace,
+                                    },
+                                    Color32::WHITE,
+                                );
+                            }
+                            FretMarker::None => {}
+                        }
+                    });
                 }
                 let y_top = ui.available_rect_before_wrap().bottom();
                 ui.end_row();
-
 
                 // "draw" each guitar string as a row in the grid
                 for i in (0..*&self.strings.len()).rev() {
@@ -281,46 +323,77 @@ impl eframe::App for FretboardApp {
                             });
                         }
                         
-                        if self.is_note_in_scale(note_as_int as i16){
-                            
-                            let caption = match self.note_marks {
-                                NoteMarker::AllNotes|NoteMarker::NotesInKey => caption,
-                                NoteMarker::Dots => "•",
-                                NoteMarker::Numbers => caption_number,
-                                _ => "",
-                            };
-                            if self.is_note_root(note_as_int as i16) {
-                                ui.colored_label(Color32::WHITE, caption);
+                        ui.centered_and_justified(|ui|{
+
+                            if self.is_note_in_scale(note_as_int as i16){
+                                
+                                let caption = match self.note_marks {
+                                    NoteMarker::AllNotes|NoteMarker::NotesInKey => caption,
+                                    NoteMarker::Numbers => caption_number,
+                                    _ => "",
+                                };
+                                let color1 = match self.is_note_root(note_as_int as i16){
+                                    true => Color32::WHITE,
+                                    false => Color32::GOLD,
+                                };
+                                let color2 = match self.is_note_root(note_as_int as i16){
+                                    true => Color32::BLACK,
+                                    false => Color32::BLACK,
+                                };
+                                painter.circle_filled(
+                                    ui.available_rect_before_wrap().center(),
+                                    12f32,
+                                    color1,
+                                );
+                                painter.text(
+                                    ui.available_rect_before_wrap().center(),
+                                    Align2::CENTER_CENTER,
+                                    caption,
+                                    FontId {
+                                        size: 13f32,
+                                        family: FontFamily::Monospace,
+                                    },
+                                    color2,
+                                );
+                                
                             } else {
-                                ui.colored_label(Color32::GOLD, caption);
+                                if self.note_marks == NoteMarker::AllNotes {
+                                    painter.text(
+                                        ui.available_rect_before_wrap().center(),
+                                        Align2::CENTER_CENTER,
+                                        caption,
+                                        FontId {
+                                            size: 10f32,
+                                            family: FontFamily::Monospace,
+                                        },
+                                        Color32::DARK_GRAY,
+                                    );
+                                }
                             }
-                        } else {
-                            let caption = match self.note_marks {
-                                NoteMarker::AllNotes => caption,
-                                _ => "",
-                            };
-                            ui.small(RichText::new(caption).color(Color32::DARK_GRAY));
-                        }
+                        });
+
 
                     }
                     ui.end_row();
                 }
+                // bottom of fretboard
                 let y_bottom = ui.available_rect_before_wrap().top();
                 
-                // a collaction of shapes to hold the lines we want to draw:
-                let mut shapes = Vec::new();
-
+                // draw row of fret-markers:
                 for fret in 0..num_cols {
-                    // "draw" the fret markers underneath the fret board
-                    ui.colored_label(Color32::WHITE, self.fret_marker(fret));
+                    
+                    ui.centered_and_justified(|ui|{
+                        
+                    });
 
                     if fret == 0 {
                         continue;
                     }
+
                     // calculate placement of lines, and
                     // store each line in shapes collection
-                    let x = ui.available_rect_before_wrap().left() - 20.;
-                    shapes.push(Shape::line_segment(
+                    let x = ui.available_rect_before_wrap().left() - 5f32;
+                    painter.line_segment(
                         [
                             Pos2 { x:x, y:y_top },
                             Pos2 { x:x, y:y_bottom },
@@ -335,13 +408,14 @@ impl eframe::App for FretboardApp {
                                 _ => Color32::DARK_GRAY,
                             }
                         }
-                    ));
+                    );
                 }
                 ui.end_row();
                 
-                // draw lines:
-                ui.painter().extend(shapes);
             });
         });
+
+        
+        //painter.extend(shapes);
     }
 }
