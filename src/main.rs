@@ -47,6 +47,7 @@ enum NoteMarker {
     AllNotes,
     NotesInKey,
     Numbers,
+    Triads,
 }
 
 struct FretboardApp {
@@ -98,6 +99,9 @@ impl FretboardApp {
         }
         n %= 12;
         self.scales[self.scale_num].notes.iter().any(|note| *note == n as usize)
+    }
+    pub fn is_scale_minor(&self) -> bool {
+        self.scales[self.scale_num].isMinor
     }
     pub fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
         let f:i32 = fret.try_into().unwrap_or(0);
@@ -154,22 +158,30 @@ impl FretboardApp {
 impl Default for FretboardApp {
     fn default() -> Self {
         Self {
+            // EADGBE:
             strings: vec![4,9,14,19,23,28],
+            // GDAE: (violin)
+            //strings: vec![7, 14, 21, 28],
             frets: 9,
             scale_key: 0,
             scale_num: 0,
             scales: vec![
+                // 0  1  2  3  4  5   6  7   8  9   10  11 12
+                // R b2  2 b3  3  4  b5  5  b6  6   b7   7
                 // pentatonic scales (5-pitches)
-                music_scale!("pentatonic minor", 0, 3, 5, 7, 10, 12),
-                music_scale!("pentatonic major", 0, 2, 4, 7, 9, 12),
-                // heptatonic scales (6-pitches)
-                music_scale!("minor", 0, 2, 3, 5, 7, 8, 10, 12),
-                music_scale!("major", 0, 2, 4, 5, 7, 9, 11, 12),
-                music_scale!("dorian", 0, 2, 3, 5, 7, 9, 10, 12),
-                music_scale!("phrygian", 0, 1, 3, 5, 7, 8, 10, 12),
-                music_scale!("lydian", 0, 2, 4, 6, 7, 9, 11, 12),
-                // hexatonic scales (7-pitches)
-                music_scale!("blues minor", 0, 3, 5, 6, 7, 10, 12),
+                music_scale!("major pentatonic", false, 0, 2, 4, 7, 9, 12),
+                music_scale!("minor pentatonic", true, 0, 3, 5, 7, 10, 12),
+                // hexatonic scales (6-pitches)
+                music_scale!("major blues", false, 0, 2, 3, 4, 7, 9, 12),
+                music_scale!("minor blues", true, 0, 3, 5, 6, 7, 10, 12),
+                // heptatonic scales (7-pitches)
+                music_scale!("major", false, 0, 2, 4, 5, 7, 9, 11, 12),
+                music_scale!("minor", true, 0, 2, 3, 5, 7, 8, 10, 12),
+                /*
+                music_scale!("dorian", false, 0, 2, 3, 5, 7, 9, 10, 12),
+                music_scale!("phrygian", false, 0, 1, 3, 5, 7, 8, 10, 12),
+                music_scale!("lydian", false, 0, 2, 4, 6, 7, 9, 11, 12),
+                */
             ],
             notes: vec![
                 "C".to_string(),
@@ -200,7 +212,7 @@ impl Default for FretboardApp {
                 "7".to_string(),
             ],
             fret_marks: FretMarker::Dots,
-            note_marks: NoteMarker::NotesInKey,
+            note_marks: NoteMarker::Triads,
         }
     }
 }
@@ -373,17 +385,32 @@ impl eframe::App for FretboardApp {
                                     if self.is_note_in_scale(note_as_int as i16){
                                         
                                         let caption = match self.note_marks {
+                                            NoteMarker::Triads => match self.is_scale_minor() {
+                                                true => match num_0_to_11 { 0|3|7 => caption_number, _ => "", },
+                                                false => match num_0_to_11 { 0|4|7 => caption_number, _ => "", }
+                                            },
                                             NoteMarker::AllNotes|NoteMarker::NotesInKey => caption,
                                             NoteMarker::Numbers => caption_number,
                                             _ => "",
                                         };
-                                        let color1 = match self.is_note_root(note_as_int as i16){
-                                            true => Color32::WHITE,
-                                            false => Color32::GOLD,
-                                        };
-                                        let color2 = match self.is_note_root(note_as_int as i16){
-                                            true => Color32::BLACK,
-                                            false => Color32::BLACK,
+                                        // bubble color
+                                        let color1 = match self.note_marks {
+                                            NoteMarker::Triads => match self.is_scale_minor() {
+                                                true => match num_0_to_11 {
+                                                    0 => Color32::WHITE,
+                                                    3 => Color32::GOLD,
+                                                    7 => Color32::BLUE,
+                                                    _ => Color32::DARK_GRAY,
+                                                },
+                                                false => match num_0_to_11 {
+                                                    0 => Color32::WHITE,
+                                                    4 => Color32::GOLD,
+                                                    7 => Color32::BLUE,
+                                                    _ => Color32::DARK_GRAY,
+                                                },
+                                            }
+                                            NoteMarker::AllNotes|NoteMarker::NotesInKey => Color32::GOLD,
+                                            NoteMarker::Numbers => Color32::GOLD,
                                         };
                                         painter.circle_filled(
                                             ui.available_rect_before_wrap().center(),
@@ -398,11 +425,16 @@ impl eframe::App for FretboardApp {
                                                 size: 13f32,
                                                 family: FontFamily::Monospace,
                                             },
-                                            color2,
+                                            Color32::BLACK,
                                         );
                                         
                                     } else {
                                         if self.note_marks == NoteMarker::AllNotes {
+                                            painter.circle_filled(
+                                                ui.available_rect_before_wrap().center(),
+                                                12f32,
+                                                Color32::BLACK,
+                                            );
                                             painter.text(
                                                 ui.available_rect_before_wrap().center(),
                                                 Align2::CENTER_CENTER,
@@ -416,8 +448,6 @@ impl eframe::App for FretboardApp {
                                         }
                                     }
                                 });
-
-
                             }
                             ui.end_row();
                         }
