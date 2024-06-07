@@ -5,8 +5,8 @@ use egui::*;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-mod guitar;
-use guitar::*;
+mod scales;
+use scales::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main(){
@@ -53,8 +53,6 @@ struct FretboardApp {
     scale_num: usize,
     scale_key: usize,
     scales: Vec<ScaleIntervals>,
-    notes: Vec<String>,
-    numbers: Vec<String>,
     fret_marks: FretMarker,
     note_marks: NoteMarker,
 }
@@ -62,29 +60,8 @@ impl FretboardApp {
     fn new() -> Self {
         Self::default()
     }
-    pub fn lookup_note_str(&self, n:usize) -> String {
-        String::from(&self.notes[n % self.notes.len()])
-    }
-    pub fn lookup_scale_str(&self, n:usize) -> String {
-        match n {
-            x if x >= self.scales.len() => {
-                String::from("")
-            },
-            _ => {
-                String::from(&self.scales[n].name)
-            }
-        }
-    }
-    pub fn is_note_in_scale(&self, mut n:i16) -> bool {
-        n -= self.scale_key as i16;
-        while n < 0 {
-            n += 12;
-        }
-        n %= 12;
-        self.scales[self.scale_num].notes().iter().any(|note| *note == n as usize)
-    }
-    pub fn is_scale_minor(&self) -> bool {
-        self.scales[self.scale_num].is_minor
+    pub fn scale(&self) -> &ScaleIntervals {
+        &self.scales[self.scale_num]
     }
     pub fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
         let f:i32 = fret.try_into().unwrap_or(0);
@@ -156,34 +133,6 @@ impl Default for FretboardApp {
                 music_intervals!("pentatonic major", false, Pentatonic),
                 music_intervals!("pentatonic minor", true, Pentatonic),
             ],
-            notes: vec![
-                "C".to_string(),
-                "C#".to_string(),
-                "D".to_string(),
-                "D#".to_string(),
-                "E".to_string(),
-                "F".to_string(),
-                "F#".to_string(),
-                "G".to_string(),
-                "G#".to_string(),
-                "A".to_string(),
-                "A#".to_string(),
-                "B".to_string(),
-            ],
-            numbers: vec![
-                "R".to_string(),
-                "b2".to_string(),
-                "2".to_string(),
-                "b3".to_string(),
-                "3".to_string(),
-                "4".to_string(),
-                "b5".to_string(),
-                "5".to_string(),
-                "b6".to_string(),
-                "6".to_string(),
-                "b7".to_string(),
-                "7".to_string(),
-            ],
             fret_marks: FretMarker::Dots,
             note_marks: NoteMarker::Triads,
         }
@@ -207,7 +156,7 @@ impl eframe::App for FretboardApp {
             ui.horizontal(|ui|{
 
                 ComboBox::from_id_source("scale")
-                    .selected_text(format!("{} scale", &self.lookup_scale_str(self.scale_num)))
+                    .selected_text(format!("{} scale", &self.scale().name))
                     .width(200.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.scales.len() {
@@ -220,14 +169,14 @@ impl eframe::App for FretboardApp {
                     });
 
                 ComboBox::from_id_source("key")
-                    .selected_text(format!("key of {}", &self.lookup_note_str(self.scale_key)))
+                    .selected_text(format!("key of {}", &self.scale().get_note_letter(self.scale_key)))
                     .width(50.0)
                     .show_ui(ui, |inner_ui| {
-                        for i in 0..self.notes.len() {
+                        for i in 0..self.scale().get_total_tones() {
                             inner_ui.selectable_value(
                                 &mut self.scale_key,
                                 i,
-                                &self.notes[i]
+                                self.scales[i].get_note_letter(i),
                             );
                         }
                     });
@@ -277,12 +226,12 @@ impl eframe::App for FretboardApp {
                 ui.vertical(|ui|{
                     ui.add_space(20.0);
                     for i in (0..*&self.strings.len()).rev() {
-                        let caption = &self.notes[&self.strings[i]%12];
+                        let caption = self.scale().get_note_letter(self.strings[i]);
                         ComboBox::from_id_source(i)
                             .selected_text(caption)
                             .show_ui(ui, |inner_ui| {
-                                for ii in 0..self.notes.len() {
-                                    inner_ui.selectable_value(&mut self.strings[i], ii, &self.notes[ii]);
+                                for ii in 0..self.scale().get_total_tones() {
+                                    inner_ui.selectable_value(&mut self.strings[i], ii, self.scales[ii].get_note_letter(ii));
                                 }
                             });
                     }
@@ -328,19 +277,18 @@ impl eframe::App for FretboardApp {
                                 
                                 // every note has a unique number
                                 let note_as_int = &self.strings[i] + fret;
-                                let caption = &self.notes[note_as_int%12];
+                                let caption = &self.scale().get_note_letter(note_as_int);
 
                                 // what is the "number" of the note within the current key, from 0 to 11?
                                 let num_0_to_11 = (note_as_int + 12).checked_sub(self.scale_key).unwrap_or(0)%12;
-                                let caption_number = &self.numbers[num_0_to_11];
+                                let caption_number = &self.scale().get_note_number(num_0_to_11);
 
                                 // paint the notes onto the fretboard:
                                 ui.centered_and_justified(|ui|{
-
-                                    if self.is_note_in_scale(note_as_int as i16){
+                                    if self.scale().is_note_in_scale((note_as_int - self.scale_key) as i16){
                                         
                                         let caption = match self.note_marks {
-                                            NoteMarker::Triads => match self.is_scale_minor() {
+                                            NoteMarker::Triads => match self.scale().is_minor {
                                                 true => match num_0_to_11 { 0|3|7 => caption_number, _ => "", },
                                                 false => match num_0_to_11 { 0|4|7 => caption_number, _ => "", }
                                             },
@@ -350,7 +298,7 @@ impl eframe::App for FretboardApp {
                                         };
                                         // bubble color
                                         let color1 = match self.note_marks {
-                                            NoteMarker::Triads => match self.is_scale_minor() {
+                                            NoteMarker::Triads => match self.scale().is_minor {
                                                 true => match num_0_to_11 {
                                                     0 => Color32::WHITE,
                                                     3 => Color32::GOLD,
@@ -442,8 +390,6 @@ impl eframe::App for FretboardApp {
                 });
             });
         });
-
-        
         //painter.extend(shapes);
     }
 }
