@@ -2,9 +2,6 @@
 
 use eframe::*;
 use egui::*;
-use egui_extras::{StripBuilder, Size};
-use wasm_bindgen::prelude::*;
-use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -65,14 +62,8 @@ impl FretboardApp {
     fn new() -> Self {
         Self::default()
     }
-    pub fn lookup_note_num(&self, string:&String) -> usize {
-        self.notes.iter().position(|n| n == string).unwrap()
-    }
     pub fn lookup_note_str(&self, n:usize) -> String {
         String::from(&self.notes[n % self.notes.len()])
-    }
-    pub fn lookup_scale_num(&self, string:&String) -> usize {
-        self.scales.iter().position(|n| n.name == *string).unwrap()
     }
     pub fn lookup_scale_str(&self, n:usize) -> String {
         match n {
@@ -84,24 +75,16 @@ impl FretboardApp {
             }
         }
     }
-    pub fn is_note_root(&self, mut n:i16) -> bool {
-        n -= self.scale_key as i16;
-        while n < 0 {
-            n += 12;
-        }
-        n %= 12;
-        n == 0
-    }
     pub fn is_note_in_scale(&self, mut n:i16) -> bool {
         n -= self.scale_key as i16;
         while n < 0 {
             n += 12;
         }
         n %= 12;
-        self.scales[self.scale_num].notes.iter().any(|note| *note == n as usize)
+        self.scales[self.scale_num].notes().iter().any(|note| *note == n as usize)
     }
     pub fn is_scale_minor(&self) -> bool {
-        self.scales[self.scale_num].isMinor
+        self.scales[self.scale_num].is_minor
     }
     pub fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
         let f:i32 = fret.try_into().unwrap_or(0);
@@ -166,22 +149,12 @@ impl Default for FretboardApp {
             scale_key: 0,
             scale_num: 0,
             scales: vec![
-                // 0  1  2  3  4  5   6  7   8  9   10  11 12
-                // R b2  2 b3  3  4  b5  5  b6  6   b7   7
-                // pentatonic scales (5-pitches)
-                music_scale!("major pentatonic", false, 0, 2, 4, 7, 9, 12),
-                music_scale!("minor pentatonic", true, 0, 3, 5, 7, 10, 12),
-                // hexatonic scales (6-pitches)
-                music_scale!("major blues", false, 0, 2, 3, 4, 7, 9, 12),
-                music_scale!("minor blues", true, 0, 3, 5, 6, 7, 10, 12),
-                // heptatonic scales (7-pitches)
-                music_scale!("major", false, 0, 2, 4, 5, 7, 9, 11, 12),
-                music_scale!("minor", true, 0, 2, 3, 5, 7, 8, 10, 12),
-                /*
-                music_scale!("dorian", false, 0, 2, 3, 5, 7, 9, 10, 12),
-                music_scale!("phrygian", false, 0, 1, 3, 5, 7, 8, 10, 12),
-                music_scale!("lydian", false, 0, 2, 4, 6, 7, 9, 11, 12),
-                */
+                music_intervals!("major", false, Diatonic),
+                music_intervals!("minor", true, Diatonic),
+                music_intervals!("blues major", false, Blues),
+                music_intervals!("blues minor", true, Blues),
+                music_intervals!("pentatonic major", false, Pentatonic),
+                music_intervals!("pentatonic minor", true, Pentatonic),
             ],
             notes: vec![
                 "C".to_string(),
@@ -228,25 +201,7 @@ impl eframe::App for FretboardApp {
             ctx.available_rect(),
         );
         
-        //egui::containers::Frame {
-        //    inner_margin:Margin::same(10f32),
-        //    outer_margin:Margin::same(10f32),
-        //    rounding:Rounding::same(5f32),
-        //    shadow:epaint::Shadow {
-        //        extrusion: 5f32,
-        //        color: Color32::BLACK,
-        //    },
-        //    fill:Color32::DARK_GRAY,
-        //    stroke:Stroke {
-        //        width: 1f32,
-        //        color: Color32::WHITE,
-        //    },
-        //}
-        let panel = egui::CentralPanel::default();
-        
-        panel.show(ctx, |ui|{
-
-            
+        egui::CentralPanel::default().show(ctx, |ui|{
             ui.heading("Guitar Scales");
             // render toolbar:
             ui.horizontal(|ui|{
