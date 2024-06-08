@@ -168,16 +168,14 @@ impl eframe::App for FretboardApp {
                         }
                     });
 
+                
                 ComboBox::from_id_source("key")
-                    .selected_text(format!("key of {}", &self.scale().get_note_letter(self.scale_key)))
+                    .selected_text(format!("key of {}", self.scales[self.scale_num].get_note_letter(self.scale_key)))
                     .width(50.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.scale().get_total_tones() {
-                            inner_ui.selectable_value(
-                                &mut self.scale_key,
-                                i,
-                                self.scales[i].get_note_letter(i),
-                            );
+                            let str = self.scale().get_note_letter(i);
+                            inner_ui.selectable_value(&mut self.scale_key, i, str);
                         }
                     });
                 
@@ -186,11 +184,7 @@ impl eframe::App for FretboardApp {
                     .width(100.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 4..25 {
-                            inner_ui.selectable_value(
-                                &mut self.frets,
-                                i,
-                                format!("{}",i)
-                            );
+                            inner_ui.selectable_value(&mut self.frets, i, format!("{}",i));
                         }
                     });
                 
@@ -199,11 +193,7 @@ impl eframe::App for FretboardApp {
                     .width(100.0)
                     .show_ui(ui, |inner_ui|{
                         for fm in FretMarker::iter() {
-                            inner_ui.selectable_value(
-                                &mut self.fret_marks,
-                                fm,
-                                format!("{:?}", fm),
-                            );
+                            inner_ui.selectable_value(&mut self.fret_marks, fm, format!("{:?}", fm));
                         }
                     });
                 ComboBox::from_id_source("note_marks")
@@ -231,7 +221,8 @@ impl eframe::App for FretboardApp {
                             .selected_text(caption)
                             .show_ui(ui, |inner_ui| {
                                 for ii in 0..self.scale().get_total_tones() {
-                                    inner_ui.selectable_value(&mut self.strings[i], ii, self.scales[ii].get_note_letter(ii));
+                                    let str = self.scale().get_note_letter(ii);
+                                    inner_ui.selectable_value(&mut self.strings[i], ii, str);
                                 }
                             });
                     }
@@ -294,7 +285,6 @@ impl eframe::App for FretboardApp {
                                             },
                                             NoteMarker::AllNotes|NoteMarker::NotesInKey => caption,
                                             NoteMarker::Numbers => caption_number,
-                                            _ => "",
                                         };
                                         // bubble color
                                         let color1 = match self.note_marks {
