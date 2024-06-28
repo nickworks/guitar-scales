@@ -55,6 +55,7 @@ struct FretboardApp {
     scales: Vec<ScaleIntervals>,
     fret_marks: FretMarker,
     note_marks: NoteMarker,
+    space_string: f32,
 }
 impl FretboardApp {
     fn new() -> Self {
@@ -64,35 +65,23 @@ impl FretboardApp {
         &self.scales[self.scale_num]
     }
     pub fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
-        let f:i32 = fret.try_into().unwrap_or(0);
-        let fret_marker = match f {
+        let is_octave = fret % 12 == 0;
+        let draw_dot = |p|{
+            painter.circle_filled(p, 3f32, Color32::WHITE);
+        };
+        match match fret.try_into().unwrap_or(0) {
             3|5|7|9|12|15|17|19 => self.fret_marks,
             _ => FretMarker::None,
-        };
-        let octave = fret % 12 == 0;
-        match fret_marker {
+        } {
+            FretMarker::None => {},
             FretMarker::Dots => {
-                match octave {
-                    false =>{
-                        painter.circle_filled(
-                            pos,
-                            3f32,
-                            Color32::WHITE,
-                        );
-                    },
+                match is_octave {
+                    false => draw_dot(pos),
                     true => {
                         pos.x += 4.0;
-                        painter.circle_filled(
-                            pos,
-                            3f32,
-                            Color32::WHITE,
-                        );
+                        draw_dot(pos);
                         pos.x -= 8.0;
-                        painter.circle_filled(
-                            pos,
-                            3f32,
-                            Color32::WHITE,
-                        );
+                        draw_dot(pos);
                     }
                 }
             },
@@ -105,13 +94,12 @@ impl FretboardApp {
                         size: 12f32,
                         family: FontFamily::Monospace,
                     },
-                    match octave {
+                    match is_octave {
                         false => Color32::WHITE,
                         true => Color32::GOLD,
                     }
                 );
             }
-            FretMarker::None => {}
         }
     }
 }
@@ -135,6 +123,7 @@ impl Default for FretboardApp {
             ],
             fret_marks: FretMarker::Dots,
             note_marks: NoteMarker::Triads,
+            space_string: 20.0,
         }
     }
 }
@@ -208,29 +197,33 @@ impl eframe::App for FretboardApp {
                             );
                         }
                     });
+                ui.add(egui::Slider::new(&mut self.space_string, 20.0..=100.0).text("My value"));
                 
             });
             ui.add_space(10.0);
 
             ui.horizontal(|ui|{
-                ui.vertical(|ui|{
-                    ui.add_space(20.0);
-                    for i in (0..*&self.strings.len()).rev() {
-                        let caption = self.scale().get_note_letter(self.strings[i]);
-                        ComboBox::from_id_source(i)
-                            .selected_text(caption)
-                            .show_ui(ui, |inner_ui| {
-                                for ii in 0..self.scale().get_total_tones() {
-                                    let str = self.scale().get_note_letter(ii);
-                                    inner_ui.selectable_value(&mut self.strings[i], ii, str);
-                                }
-                            });
-                    }
-                });
+                egui::Grid::new("some_unique_id")
+                    .min_row_height(self.space_string)
+                    .show(ui, |ui| {
+                        ui.end_row();
+                        for i in (0..*&self.strings.len()).rev() {
+                            let caption = self.scale().get_note_letter(self.strings[i]);
+                            ComboBox::from_id_source(i)
+                                .selected_text(caption)
+                                .show_ui(ui, |inner_ui| {
+                                    for ii in 0..self.scale().get_total_tones() {
+                                        let str = self.scale().get_note_letter(ii);
+                                        inner_ui.selectable_value(&mut self.strings[i], ii, str);
+                                    }
+                                });
+                            ui.end_row();
+                        }
+                    });
                 ui.vertical(|ui|{
                     // draw the fretboard below
                     egui::Grid::new("some_unique_id")
-                    //.striped(true)
+                    .min_row_height(self.space_string)
                     .show(ui, |ui| {
 
                         let num_cols = self.frets + 1;
@@ -252,12 +245,12 @@ impl eframe::App for FretboardApp {
                         let x2 = ui.max_rect().right();
                         
                         for i in (0..*&self.strings.len()).rev() {
-                            let y = ui.available_rect_before_wrap().center().y;
+                            let cy = ui.available_rect_before_wrap().center().y;
                             // draw horizontal line (string):
                             painter.line_segment(
                                 [
-                                    Pos2 {x:x1, y:y},
-                                    Pos2 {x:x2, y:y},
+                                    Pos2 {x:x1, y:cy},
+                                    Pos2 {x:x2, y:cy},
                                 ],
                                 Stroke{
                                     width: 1.0,
@@ -268,78 +261,13 @@ impl eframe::App for FretboardApp {
                                 
                                 // every note has a unique number
                                 let note_as_int = &self.strings[i] + fret;
-                                let caption = &self.scale().get_note_letter(note_as_int);
-
-                                // what is the "number" of the note within the current key, from 0 to 11?
-                                let num_0_to_11 = (note_as_int + 12).checked_sub(self.scale_key).unwrap_or(0)%12;
-                                let caption_number = &self.scale().get_note_number(num_0_to_11);
-
+                                let b = self.scale().get_bubble(note_as_int, self.scale_key, self.note_marks);
+                                
                                 // paint the notes onto the fretboard:
                                 ui.centered_and_justified(|ui|{
-                                    if self.scale().is_note_in_scale((note_as_int - self.scale_key) as i16){
-                                        
-                                        let caption = match self.note_marks {
-                                            NoteMarker::Triads => match self.scale().is_minor {
-                                                true => match num_0_to_11 { 0|3|7 => caption_number, _ => "", },
-                                                false => match num_0_to_11 { 0|4|7 => caption_number, _ => "", }
-                                            },
-                                            NoteMarker::AllNotes|NoteMarker::NotesInKey => caption,
-                                            NoteMarker::Numbers => caption_number,
-                                        };
-                                        // bubble color
-                                        let color1 = match self.note_marks {
-                                            NoteMarker::Triads => match self.scale().is_minor {
-                                                true => match num_0_to_11 {
-                                                    0 => Color32::WHITE,
-                                                    3 => Color32::GOLD,
-                                                    7 => Color32::BLUE,
-                                                    _ => Color32::DARK_GRAY,
-                                                },
-                                                false => match num_0_to_11 {
-                                                    0 => Color32::WHITE,
-                                                    4 => Color32::GOLD,
-                                                    7 => Color32::BLUE,
-                                                    _ => Color32::DARK_GRAY,
-                                                },
-                                            }
-                                            NoteMarker::AllNotes|NoteMarker::NotesInKey => Color32::GOLD,
-                                            NoteMarker::Numbers => Color32::GOLD,
-                                        };
-                                        painter.circle_filled(
-                                            ui.available_rect_before_wrap().center(),
-                                            12f32,
-                                            color1,
-                                        );
-                                        painter.text(
-                                            ui.available_rect_before_wrap().center(),
-                                            Align2::CENTER_CENTER,
-                                            caption,
-                                            FontId {
-                                                size: 13f32,
-                                                family: FontFamily::Monospace,
-                                            },
-                                            Color32::BLACK,
-                                        );
-                                        
-                                    } else {
-                                        if self.note_marks == NoteMarker::AllNotes {
-                                            painter.circle_filled(
-                                                ui.available_rect_before_wrap().center(),
-                                                12f32,
-                                                Color32::BLACK,
-                                            );
-                                            painter.text(
-                                                ui.available_rect_before_wrap().center(),
-                                                Align2::CENTER_CENTER,
-                                                caption,
-                                                FontId {
-                                                    size: 10f32,
-                                                    family: FontFamily::Monospace,
-                                                },
-                                                Color32::DARK_GRAY,
-                                            );
-                                        }
-                                    }
+                                    let pos = ui.available_rect_before_wrap().center();
+                                    painter.circle_filled(pos, 12f32, b.color);
+                                    painter.text(pos, Align2::CENTER_CENTER, b.text, FontId { size: 13f32, family: FontFamily::Monospace}, Color32::BLACK);
                                 });
                             }
                             ui.end_row();
