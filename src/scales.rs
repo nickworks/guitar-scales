@@ -105,28 +105,40 @@ impl ScaleIntervals {
     pub fn get_total_tones(&self) -> usize {
         self.total_tones
     }
+    pub fn get_note_color(&self, note_0_to_11:usize) -> Color32 {
+        match self.is_minor {
+            true => match note_0_to_11 {
+                0 => Color32::WHITE,
+                6 => Color32::BLUE,
+                3|7 => Color32::GOLD,
+                2|5|8|10 => Color32::RED,
+                _ => Color32::GRAY,
+            },
+            false => match note_0_to_11 {
+                0 => Color32::WHITE,
+                3 => Color32::BLUE,
+                4|7 => Color32::GOLD,
+                2|5|9|11 => Color32::RED,
+                _ => Color32::DARK_GRAY,
+            }
+        }
+    }
     pub fn get_bubble(&self, note_as_int:usize, key:usize, note_marker:NoteMarker) -> Bubble {
         let note_0_to_11 = (note_as_int + 12).checked_sub(key).unwrap_or(0)%12;
-        let caption_letter = self.get_note_letter(note_0_to_11);
+        let caption_letter = self.get_note_letter(note_as_int);
         let caption_number = self.get_note_number(note_0_to_11);
-        let is_note_in_scale = self.is_note_in_scale(note_0_to_11 as i16 - key as i16);
+        let is_note_in_scale = self.is_note_in_scale(note_as_int as i16 - key as i16);
         let blank = "".to_string();
         return Bubble {
             color: match note_marker {
-                NoteMarker::Triads => match note_0_to_11 {
-                    0 => Color32::WHITE,
-                    3 => match self.is_minor { false => Color32::TRANSPARENT, true => Color32::GOLD}
-                    4 => match self.is_minor { true => Color32::TRANSPARENT, false => Color32::GOLD}
-                    7 => Color32::BLUE,
-                    _ => Color32::TRANSPARENT,
+                NoteMarker::Triads => match self.is_minor {
+                    true => match note_0_to_11 { 0|3|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
+                    false => match note_0_to_11 { 0|4|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
                 },
-                NoteMarker::AllNotes => Color32::GRAY,
-                NoteMarker::NotesInKey | NoteMarker::Numbers => match note_0_to_11 {
-                    0 => Color32::WHITE,
-                    _ => match is_note_in_scale {
-                        true => Color32::BLUE,
-                        false => Color32::TRANSPARENT,
-                    }
+                NoteMarker::AllNotes => self.get_note_color(note_0_to_11),
+                NoteMarker::NotesInKey | NoteMarker::Numbers => match is_note_in_scale {
+                    false => Color32::TRANSPARENT,
+                    true  => self.get_note_color(note_0_to_11),
                 },
             },
             text: match note_marker {
