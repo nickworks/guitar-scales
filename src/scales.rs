@@ -1,6 +1,6 @@
 #![macro_use]
 
-use egui::{Color32, TextBuffer};
+use egui::Color32;
 
 use crate::NoteMarker;
 
@@ -13,49 +13,21 @@ pub struct ScaleIntervals {
     pub name: String,
     pub is_minor: bool,
     pub size: ScaleSize,
-    pub note_letters: Vec<String>,
-    pub note_numbers: Vec<String>,
-    pub total_tones: usize,
 }
 pub struct Bubble {
     pub color: Color32,
     pub text: String,
 }
+pub const TOTAL_TONES:usize = 12;
+const NOTE_LETTERS: [&'static str; TOTAL_TONES] = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const NOTE_NUMBERS: [&'static str; TOTAL_TONES] = ["R","b2","2","b3","3","4","b5","5","b6","6","b7","7"];
+
 macro_rules! music_intervals {
     ($name:literal, $minor:literal, $size:ident) => {
         ScaleIntervals {
-            total_tones: 12,
             name: $name.to_string(),
             is_minor: $minor,
             size: ScaleSize::$size,
-            note_letters: vec![
-                "C".to_string(),
-                "C#".to_string(),
-                "D".to_string(),
-                "D#".to_string(),
-                "E".to_string(),
-                "F".to_string(),
-                "F#".to_string(),
-                "G".to_string(),
-                "G#".to_string(),
-                "A".to_string(),
-                "A#".to_string(),
-                "B".to_string(),
-            ],
-            note_numbers: vec![
-                "R".to_string(),
-                "b2".to_string(),
-                "2".to_string(),
-                "b3".to_string(),
-                "3".to_string(),
-                "4".to_string(),
-                "b5".to_string(),
-                "5".to_string(),
-                "b6".to_string(),
-                "6".to_string(),
-                "b7".to_string(),
-                "7".to_string(),
-            ]
         }
     };
 }
@@ -86,22 +58,19 @@ impl ScaleIntervals {
         notes
     }
     pub fn is_note_in_scale(&self, mut n:i16) -> bool {
-        // wrap n, so that 0 <= n < self.total_tones
+        // wrap n, so that 0 <= n < TOTAL_TONES
         while n < 0 {
-            n += self.total_tones as i16;
+            n += TOTAL_TONES as i16;
         }
-        n %= self.total_tones as i16;
+        n %= TOTAL_TONES as i16;
         // returns true if any element matches n
         self.notes().iter().any(|note| *note == n as usize)
     }
     pub fn get_note_letter(&self, n:usize) -> String {
-        String::from(&self.note_letters[n % self.total_tones])
+        String::from(NOTE_LETTERS[n % TOTAL_TONES])
     }
     pub fn get_note_number(&self, n:usize) -> String {
-        String::from(&self.note_numbers[n % self.total_tones])
-    }
-    pub fn get_total_tones(&self) -> usize {
-        self.total_tones
+        String::from(NOTE_NUMBERS[n % TOTAL_TONES])
     }
     pub fn get_note_color(&self, note_0_to_11:usize) -> Color32 {
         match self.is_minor {
