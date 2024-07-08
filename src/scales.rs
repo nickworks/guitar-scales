@@ -16,7 +16,6 @@ pub struct ScaleIntervals {
     pub note_letters: Vec<String>,
     pub note_numbers: Vec<String>,
     pub total_tones: usize,
-    pub blank: String,
 }
 pub struct Bubble {
     pub color: Color32,
@@ -29,7 +28,6 @@ macro_rules! music_intervals {
             name: $name.to_string(),
             is_minor: $minor,
             size: ScaleSize::$size,
-            blank: "".to_string(),
             note_letters: vec![
                 "C".to_string(),
                 "C#".to_string(),
