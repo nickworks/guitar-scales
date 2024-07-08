@@ -64,7 +64,7 @@ impl FretboardApp {
     pub fn scale(&self) -> &ScaleIntervals {
         &self.scales[self.scale_num]
     }
-    pub fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
+    fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
         let is_octave = fret % 12 == 0;
         let draw_dot = |p|{
             painter.circle_filled(p, 3f32, Color32::WHITE);
@@ -102,42 +102,7 @@ impl FretboardApp {
             }
         }
     }
-}
-impl Default for FretboardApp {
-    fn default() -> Self {
-        Self {
-            // EADGBE:
-            strings: vec![4,9,14,19,23,28],
-            // GDAE: (violin)
-            //strings: vec![7, 14, 21, 28],
-            frets: 9,
-            scale_key: 0,
-            scale_num: 0,
-            scales: vec![
-                music_intervals!("major", false, Diatonic),
-                music_intervals!("minor", true, Diatonic),
-                music_intervals!("blues major", false, Blues),
-                music_intervals!("blues minor", true, Blues),
-                music_intervals!("pentatonic major", false, Pentatonic),
-                music_intervals!("pentatonic minor", true, Pentatonic),
-            ],
-            fret_marks: FretMarker::Dots,
-            note_marks: NoteMarker::Triads,
-            space_string: 20.0,
-        }
-    }
-}
-impl eframe::App for FretboardApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-        let painter = Painter::new(
-            ctx.clone(),
-            LayerId {
-                id: Id::new("shapes_layer"),
-                order: Order::Background,
-            },
-            ctx.available_rect(),
-        );
+    fn draw_panel_top(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("the_top_panel").show(ctx, |ui|{
             ui.heading("Current Scale");
             // render toolbar:
@@ -165,10 +130,11 @@ impl eframe::App for FretboardApp {
                             inner_ui.selectable_value(&mut self.scale_key, i, str);
                         }
                     });
-                
             });
             ui.add_space(10.0);
         });
+    }
+    fn draw_panel_bottom(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("the_bottom_panel").show(ctx, |ui|{
             ui.heading("View Options");
             // render toolbar:
@@ -208,9 +174,19 @@ impl eframe::App for FretboardApp {
             ui.add_space(10.0);
 
         });
+    }
+    fn draw_panel_center(&mut self, ctx: &egui::Context){
+        let painter = Painter::new(
+            ctx.clone(),
+            LayerId {
+                id: Id::new("shapes_layer"),
+                order: Order::Background,
+            },
+            ctx.available_rect(),
+        );
         egui::CentralPanel::default().show(ctx, |ui|{
-
             ui.horizontal(|ui|{
+                // to the left, draw a grid of combo boxes
                 egui::Grid::new("some_unique_id")
                     .min_row_height(self.space_string)
                     .show(ui, |ui| {
@@ -228,6 +204,7 @@ impl eframe::App for FretboardApp {
                             ui.end_row();
                         }
                     });
+                // to the right, draw fretboard
                 ui.vertical(|ui|{
                     // draw the fretboard below
                     egui::Grid::new("some_unique_id")
@@ -316,6 +293,36 @@ impl eframe::App for FretboardApp {
                 });
             });
         });
-        //painter.extend(shapes);
+    }
+}
+impl Default for FretboardApp {
+    fn default() -> Self {
+        Self {
+            // EADGBE:
+            strings: vec![4,9,14,19,23,28],
+            // GDAE: (violin)
+            //strings: vec![7, 14, 21, 28],
+            frets: 9,
+            scale_key: 0,
+            scale_num: 0,
+            scales: vec![
+                music_intervals!("major", false, Diatonic),
+                music_intervals!("minor", true, Diatonic),
+                music_intervals!("blues major", false, Blues),
+                music_intervals!("blues minor", true, Blues),
+                music_intervals!("pentatonic major", false, Pentatonic),
+                music_intervals!("pentatonic minor", true, Pentatonic),
+            ],
+            fret_marks: FretMarker::Dots,
+            note_marks: NoteMarker::Triads,
+            space_string: 20.0,
+        }
+    }
+}
+impl eframe::App for FretboardApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.draw_panel_top(ctx);
+        self.draw_panel_bottom(ctx);
+        self.draw_panel_center(ctx);
     }
 }
