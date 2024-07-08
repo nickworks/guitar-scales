@@ -138,12 +138,11 @@ impl eframe::App for FretboardApp {
             },
             ctx.available_rect(),
         );
-        
-        egui::CentralPanel::default().show(ctx, |ui|{
-            ui.heading("Guitar Scales");
+        egui::TopBottomPanel::top("the_top_panel").show(ctx, |ui|{
+            ui.heading("Current Scale");
             // render toolbar:
             ui.horizontal(|ui|{
-
+    
                 ComboBox::from_id_source("scale")
                     .selected_text(format!("{} scale", &self.scale().name))
                     .width(200.0)
@@ -156,7 +155,6 @@ impl eframe::App for FretboardApp {
                             );
                         }
                     });
-
                 
                 ComboBox::from_id_source("key")
                     .selected_text(format!("key of {}", self.scales[self.scale_num].get_note_letter(self.scale_key)))
@@ -167,6 +165,14 @@ impl eframe::App for FretboardApp {
                             inner_ui.selectable_value(&mut self.scale_key, i, str);
                         }
                     });
+                
+            });
+            ui.add_space(10.0);
+        });
+        egui::TopBottomPanel::bottom("the_bottom_panel").show(ctx, |ui|{
+            ui.heading("View Options");
+            // render toolbar:
+            ui.horizontal(|ui|{
                 
                 ComboBox::from_id_source("frets")
                     .selected_text(format!("{} frets", self.frets))
@@ -198,9 +204,11 @@ impl eframe::App for FretboardApp {
                         }
                     });
                 ui.add(egui::Slider::new(&mut self.space_string, 20.0..=100.0).text("My value"));
-                
             });
             ui.add_space(10.0);
+
+        });
+        egui::CentralPanel::default().show(ctx, |ui|{
 
             ui.horizontal(|ui|{
                 egui::Grid::new("some_unique_id")
