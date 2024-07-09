@@ -1,61 +1,48 @@
 #![macro_use]
 
 use egui::Color32;
+use strum_macros::EnumIter;
 
 use crate::NoteMarker;
 
+#[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
 pub enum ScaleSize {
     Diatonic,
     Blues,
     Pentatonic,
 }
-pub struct ScaleIntervals {
-    pub name: String,
-    pub is_minor: bool,
-    pub size: ScaleSize,
+#[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
+pub enum ScaleType {
+    Minor,
+    Major,
+}
+pub struct Scale {
+    pub typ: ScaleType,
+    pub siz: ScaleSize,
+    pub key: usize,
 }
 pub struct Bubble {
     pub color: Color32,
     pub text: String,
 }
 pub const TOTAL_TONES:usize = 12;
-const NOTE_LETTERS: [&'static str; TOTAL_TONES] = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+pub const NOTE_LETTERS: [&'static str; TOTAL_TONES] = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const NOTE_NUMBERS: [&'static str; TOTAL_TONES] = ["R","b2","2","b3","3","4","b5","5","b6","6","b7","7"];
 
-macro_rules! music_intervals {
-    ($name:literal, $minor:literal, $size:ident) => {
-        ScaleIntervals {
-            name: $name.to_string(),
-            is_minor: $minor,
-            size: ScaleSize::$size,
-        }
-    };
-}
-impl ScaleIntervals {
-    pub fn intervals(&self) -> Vec<usize>{
-        return match self.size { 
-            ScaleSize::Diatonic => match self.is_minor {
-                false => vec!(2,2,1,2,2,2,1),
-                true => vec!(2,1,2,2,1,2,2),
+impl Scale {
+    pub fn notes(&self) -> Vec<usize>{
+        return match self.typ {
+            ScaleType::Minor => match self.siz {
+                ScaleSize::Diatonic => vec!(0,2,3,5,7,8,10),
+                ScaleSize::Blues => vec!(0,3,5,6,7,10),
+                ScaleSize::Pentatonic => vec!(0,3,5,7,10),
             },
-            ScaleSize::Blues => match self.is_minor {
-                false => vec!(2,1,1,3,2,3),
-                true => vec!(3,2,1,1,3,2),
-            },
-            ScaleSize::Pentatonic => match self.is_minor {
-                false => vec!(2,2,3,2,3),
-                true => vec!(3,2,2,3,2),
+            ScaleType::Major => match self.siz {
+                ScaleSize::Diatonic => vec!(0,2,4,5,7,9,11),
+                ScaleSize::Blues => vec!(0,2,3,4,7,9),
+                ScaleSize::Pentatonic => vec!(0,2,4,7,9),
             },
         }
-    }
-    pub fn notes(&self) -> Vec<usize> {
-        let mut n = 0;
-        let mut notes:Vec<usize> = vec!(0);
-        for i in self.intervals() {
-            n += i;
-            notes.push(n);
-        }
-        notes
     }
     pub fn is_note_in_scale(&self, mut n:i16) -> bool {
         // wrap n, so that 0 <= n < TOTAL_TONES
@@ -73,15 +60,15 @@ impl ScaleIntervals {
         String::from(NOTE_NUMBERS[n % TOTAL_TONES])
     }
     pub fn get_note_color(&self, note_0_to_11:usize) -> Color32 {
-        match self.is_minor {
-            true => match note_0_to_11 {
+        match self.typ {
+            ScaleType::Minor => match note_0_to_11 {
                 0 => Color32::WHITE,
                 6 => Color32::BLUE,
                 3|7 => Color32::GOLD,
                 2|5|8|10 => Color32::RED,
                 _ => Color32::GRAY,
             },
-            false => match note_0_to_11 {
+            ScaleType::Major => match note_0_to_11 {
                 0 => Color32::WHITE,
                 3 => Color32::BLUE,
                 4|7 => Color32::GOLD,
@@ -98,9 +85,9 @@ impl ScaleIntervals {
         let blank = "".to_string();
         return Bubble {
             color: match note_marker {
-                NoteMarker::Triads => match self.is_minor {
-                    true => match note_0_to_11 { 0|3|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
-                    false => match note_0_to_11 { 0|4|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
+                NoteMarker::Triads => match self.typ {
+                    ScaleType::Minor => match note_0_to_11 { 0|3|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
+                    ScaleType::Major => match note_0_to_11 { 0|4|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
                 },
                 NoteMarker::AllNotes => self.get_note_color(note_0_to_11),
                 NoteMarker::NotesInKey | NoteMarker::Numbers => match is_note_in_scale {
@@ -109,9 +96,9 @@ impl ScaleIntervals {
                 },
             },
             text: match note_marker {
-                NoteMarker::Triads => match self.is_minor {
-                    true => match note_0_to_11 { 0|3|7 => caption_number, _ => blank, },
-                    false => match note_0_to_11 { 0|4|7 => caption_number, _ => blank, }
+                NoteMarker::Triads => match self.typ {
+                    ScaleType::Minor => match note_0_to_11 { 0|3|7 => caption_number, _ => blank, },
+                    ScaleType::Major => match note_0_to_11 { 0|4|7 => caption_number, _ => blank, }
                 },
                 NoteMarker::AllNotes => caption_letter,
                 NoteMarker::NotesInKey => match is_note_in_scale {

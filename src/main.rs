@@ -51,16 +51,17 @@ struct Instrument {
     tuning: String,
     strings: Vec<usize>,
 }
-struct FretboardApp {
-    instruments: Vec<Instrument>,
-    current_instrument: usize,
+struct DrawSettings {
     frets: usize,
-    scale_num: usize,
-    scale_key: usize,
-    scales: Vec<ScaleIntervals>,
     fret_marks: FretMarker,
     note_marks: NoteMarker,
     space_string: f32,
+}
+struct FretboardApp {
+    instruments: Vec<Instrument>,
+    current_instrument: usize,
+    settings: DrawSettings,
+    scale: Scale,
 }
 impl Default for FretboardApp {
     fn default() -> Self {
@@ -78,20 +79,17 @@ impl Default for FretboardApp {
                     strings: vec![7,14,21,28],
                 }
             ],
-            frets: 9,
-            scale_key: 0,
-            scale_num: 0,
-            scales: vec![
-                music_intervals!("major", false, Diatonic),
-                music_intervals!("minor", true, Diatonic),
-                music_intervals!("blues major", false, Blues),
-                music_intervals!("blues minor", true, Blues),
-                music_intervals!("pentatonic major", false, Pentatonic),
-                music_intervals!("pentatonic minor", true, Pentatonic),
-            ],
-            fret_marks: FretMarker::Dots,
-            note_marks: NoteMarker::Triads,
-            space_string: 20.0,
+            settings: DrawSettings {
+                frets: 9,
+                fret_marks: FretMarker::Dots,
+                note_marks: NoteMarker::NotesInKey,
+                space_string: 20.0,
+            },
+            scale: Scale {
+                siz: ScaleSize::Pentatonic,
+                typ: ScaleType::Minor,
+                key: 0,
+            }
         }
     }
 }
@@ -106,9 +104,6 @@ impl FretboardApp {
     fn new() -> Self {
         Self::default()
     }
-    pub fn scale(&self) -> &ScaleIntervals {
-        &self.scales[self.scale_num]
-    }
     pub fn instrument(&self) -> &Instrument {
         &self.instruments[self.current_instrument]
     }
@@ -121,7 +116,7 @@ impl FretboardApp {
             painter.circle_filled(p, 3f32, Color32::WHITE);
         };
         match match fret.try_into().unwrap_or(0) {
-            3|5|7|9|12|15|17|19 => self.fret_marks,
+            3|5|7|9|12|15|17|19 => self.settings.fret_marks,
             _ => FretMarker::None,
         } {
             FretMarker::None => {},
@@ -161,37 +156,35 @@ impl FretboardApp {
     
                 ComboBox::from_id_source("instrument")
                     .selected_text(format!("{} ({})", &self.instrument().name, &self.instrument().tuning))
-                    .width(200.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.instruments.len() {
-                            inner_ui.selectable_value(
-                                &mut self.current_instrument,
-                                i,
-                                &self.instruments[i].name
-                            );
+                            inner_ui.selectable_value(&mut self.current_instrument, i, &self.instruments[i].name);
                         }
                     });
                 
-                ComboBox::from_id_source("scale")
-                    .selected_text(format!("{} scale", &self.scale().name))
-                    .width(200.0)
-                    .show_ui(ui, |inner_ui| {
-                        for i in 0..self.scales.len() {
-                            inner_ui.selectable_value(
-                                &mut self.scale_num,
-                                i,
-                                &self.scales[i].name
-                            );
+                ComboBox::from_id_source("scale_type")
+                    .selected_text(format!("{:?} scale", self.scale.typ))
+                    .show_ui(ui, |inner_ui|{
+                        for s in ScaleType::iter() {
+                            inner_ui.selectable_value(&mut self.scale.typ, s, format!("{:?}", s));
+                        }
+                    });
+                
+                ComboBox::from_id_source("scale_size")
+                    .selected_text(format!("{:?} scale", self.scale.siz))
+                    .show_ui(ui, |inner_ui|{
+                        for s in ScaleSize::iter() {
+                            inner_ui.selectable_value(&mut self.scale.siz, s, format!("{:?}", s));
                         }
                     });
                 
                 ComboBox::from_id_source("key")
-                    .selected_text(format!("key of {}", self.scales[self.scale_num].get_note_letter(self.scale_key)))
+                    .selected_text(format!("key of {}", NOTE_LETTERS[self.scale.key]))
                     .width(50.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 0..TOTAL_TONES {
-                            let str = self.scale().get_note_letter(i);
-                            inner_ui.selectable_value(&mut self.scale_key, i, str);
+                            let str = self.scale.get_note_letter(i);
+                            inner_ui.selectable_value(&mut self.scale.key, i, str);
                         }
                     });
             });
@@ -205,35 +198,30 @@ impl FretboardApp {
             ui.horizontal(|ui|{
                 
                 ComboBox::from_id_source("frets")
-                    .selected_text(format!("{} frets", self.frets))
+                    .selected_text(format!("{} frets", self.settings.frets))
                     .width(100.0)
                     .show_ui(ui, |inner_ui| {
                         for i in 4..25 {
-                            inner_ui.selectable_value(&mut self.frets, i, format!("{}",i));
+                            inner_ui.selectable_value(&mut self.settings.frets, i, format!("{}",i));
                         }
                     });
-                
                 ComboBox::from_id_source("fret_marks")
-                    .selected_text(format!("{:?}", self.fret_marks))
+                    .selected_text(format!("{:?}", self.settings.fret_marks))
                     .width(100.0)
                     .show_ui(ui, |inner_ui|{
                         for fm in FretMarker::iter() {
-                            inner_ui.selectable_value(&mut self.fret_marks, fm, format!("{:?}", fm));
+                            inner_ui.selectable_value(&mut self.settings.fret_marks, fm, format!("{:?}", fm));
                         }
                     });
                 ComboBox::from_id_source("note_marks")
-                    .selected_text(format!("{:?}", self.note_marks))
+                    .selected_text(format!("{:?}", self.settings.note_marks))
                     .width(100.0)
                     .show_ui(ui, |inner_ui|{
                         for nm in NoteMarker::iter() {
-                            inner_ui.selectable_value(
-                                &mut self.note_marks,
-                                nm,
-                                format!("{:?}", nm),
-                            );
+                            inner_ui.selectable_value(&mut self.settings.note_marks, nm, format!("{:?}", nm));
                         }
                     });
-                ui.add(egui::Slider::new(&mut self.space_string, 20.0..=100.0).text("My value"));
+                ui.add(egui::Slider::new(&mut self.settings.space_string, 20.0..=100.0).text("My value"));
             });
             ui.add_space(10.0);
 
@@ -250,12 +238,13 @@ impl FretboardApp {
         );
         egui::CentralPanel::default().show(ctx, |ui|{
             ui.vertical(|ui|{
+
                 // draw the fretboard below
                 egui::Grid::new("some_unique_id")
-                .min_row_height(self.space_string)
+                .min_row_height(self.settings.space_string)
                 .show(ui, |ui| {
 
-                    let num_cols = self.frets + 1;
+                    let num_cols = self.settings.frets + 1;
                     // start first row
 
                     // paint fret-markers
@@ -290,7 +279,7 @@ impl FretboardApp {
                             
                             // every note has a unique number
                             let note_as_int = &self.strings()[i] + fret;
-                            let b = self.scale().get_bubble(note_as_int, self.scale_key, self.note_marks);
+                            let b = self.scale.get_bubble(note_as_int, self.scale.key, self.settings.note_marks);
                             
                             // paint the notes onto the fretboard:
                             ui.centered_and_justified(|ui|{
