@@ -24,6 +24,31 @@ pub struct Scale {
 pub struct Bubble {
     pub color: Color32,
     pub text: String,
+    pub text_color: Color32,
+}
+impl Bubble {
+    pub fn blank() -> Self {
+        Self {
+            color: Color32::TRANSPARENT,
+            text_color: Color32::BLACK,
+            text: "".to_string(),
+        }
+    }
+    pub fn new(colors:(Color32,Color32), txt:String) -> Bubble{
+        Self {
+            color: colors.0,
+            text_color: colors.1,
+            text: txt.to_string(),
+        }
+    }
+}
+#[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
+pub enum NoteType {
+    Root,
+    Triad,
+    Blue,
+    InScale,
+    NotInScale,
 }
 pub const TOTAL_TONES:usize = 12;
 pub const NOTE_LETTERS: [&'static str; TOTAL_TONES] = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
@@ -59,56 +84,69 @@ impl Scale {
     pub fn get_note_number(&self, n:usize) -> String {
         String::from(NOTE_NUMBERS[n % TOTAL_TONES])
     }
-    pub fn get_note_color(&self, note_0_to_11:usize) -> Color32 {
+    pub fn color_lookup(dark_mode:bool, typ:NoteType) -> (Color32, Color32) {
+        match dark_mode {
+            true => match typ {
+                NoteType::Root => (Color32::WHITE, Color32::BLACK),
+                NoteType::Blue => (Color32::BLUE, Color32::BLACK),
+                NoteType::Triad => (Color32::GOLD, Color32::BLACK),
+                NoteType::InScale => (Color32::RED, Color32::BLACK),
+                _ => (Color32::DARK_GRAY, Color32::BLACK),
+            },
+            false => match typ {
+                NoteType::Root => (Color32::BLACK, Color32::WHITE),
+                NoteType::Blue => (Color32::BLUE, Color32::BLACK),
+                NoteType::Triad => (Color32::GOLD, Color32::BLACK),
+                NoteType::InScale => (Color32::RED, Color32::WHITE),
+                _ => (Color32::DARK_GRAY, Color32::BLACK),
+            },
+        }
+    }
+    pub fn get_note_type(&self, note_0_to_11:usize) -> NoteType {
         match self.typ {
             ScaleType::Minor => match note_0_to_11 {
-                0 => Color32::WHITE,
-                6 => Color32::BLUE,
-                3|7 => Color32::GOLD,
-                2|5|8|10 => Color32::RED,
-                _ => Color32::GRAY,
+                0 => NoteType::Root,
+                6 => NoteType::Blue,
+                3|7 => NoteType::Triad,
+                2|5|8|10 => NoteType::InScale,
+                _ => NoteType::NotInScale,
             },
             ScaleType::Major => match note_0_to_11 {
-                0 => Color32::WHITE,
-                3 => Color32::BLUE,
-                4|7 => Color32::GOLD,
-                2|5|9|11 => Color32::RED,
-                _ => Color32::DARK_GRAY,
+                0 => NoteType::Root,
+                3 => NoteType::Blue,
+                4|7 => NoteType::Triad,
+                2|5|9|11 => NoteType::InScale,
+                _ => NoteType::NotInScale,
             }
         }
     }
-    pub fn get_bubble(&self, note_as_int:usize, key:usize, note_marker:NoteMarker) -> Bubble {
+    pub fn get_bubble(&self, dark_mode:bool, note_as_int:usize, key:usize, note_marker:NoteMarker) -> Bubble {
         let note_0_to_11 = (note_as_int + 12).checked_sub(key).unwrap_or(0)%12;
-        let caption_letter = self.get_note_letter(note_as_int);
-        let caption_number = self.get_note_number(note_0_to_11);
         let is_note_in_scale = self.is_note_in_scale(note_as_int as i16 - key as i16);
-        let blank = "".to_string();
-        return Bubble {
-            color: match note_marker {
-                NoteMarker::Triads => match self.typ {
-                    ScaleType::Minor => match note_0_to_11 { 0|3|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
-                    ScaleType::Major => match note_0_to_11 { 0|4|7 => self.get_note_color(note_0_to_11), _ => Color32::TRANSPARENT, },
-                },
-                NoteMarker::AllNotes => self.get_note_color(note_0_to_11),
-                NoteMarker::NotesInKey | NoteMarker::Numbers => match is_note_in_scale {
-                    false => Color32::TRANSPARENT,
-                    true  => self.get_note_color(note_0_to_11),
-                },
+        
+        let typ = self.get_note_type(note_0_to_11);
+        let colors = Scale::color_lookup(dark_mode, typ);
+
+        let bubble_letter = Bubble::new(colors, self.get_note_letter(note_as_int));
+        let bubble_number = Bubble::new(colors, self.get_note_number(note_0_to_11));
+        let bubble_debug = Bubble::new(colors, note_as_int.to_string());
+
+        return match is_note_in_scale {
+            false => {
+                match note_marker {
+                    NoteMarker::AllNotes => bubble_letter,
+                    NoteMarker::Debug => bubble_debug,
+                    _ => Bubble::blank(),
+                }
             },
-            text: match note_marker {
-                NoteMarker::Triads => match self.typ {
-                    ScaleType::Minor => match note_0_to_11 { 0|3|7 => caption_number, _ => blank, },
-                    ScaleType::Major => match note_0_to_11 { 0|4|7 => caption_number, _ => blank, }
+            true => match note_marker {
+                NoteMarker::Triads => match typ {
+                    NoteType::Root | NoteType::Triad => bubble_number,
+                    _ => Bubble::blank(),
                 },
-                NoteMarker::AllNotes => caption_letter,
-                NoteMarker::NotesInKey => match is_note_in_scale {
-                    true => caption_letter,
-                    false => blank,
-                },
-                NoteMarker::Numbers => match is_note_in_scale {
-                    true => caption_number,
-                    false => blank,
-                },
+                NoteMarker::AllNotes | NoteMarker::Letters => bubble_letter,
+                NoteMarker::Numbers => bubble_number,
+                NoteMarker::Debug => bubble_debug,
             },
         };
     }
