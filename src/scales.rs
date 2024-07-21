@@ -3,7 +3,7 @@
 use egui::Color32;
 use strum_macros::EnumIter;
 
-use crate::NoteMarker;
+use crate::fretboard::NoteMarker;
 
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
 pub enum ScaleSize {
@@ -47,7 +47,8 @@ pub enum NoteType {
     Root,
     Triad,
     Blue,
-    InScale,
+    InPentatonic,
+    InDiatonic,
     NotInScale,
 }
 pub const TOTAL_TONES:usize = 12;
@@ -90,14 +91,16 @@ impl Scale {
                 NoteType::Root => (Color32::WHITE, Color32::BLACK),
                 NoteType::Blue => (Color32::BLUE, Color32::BLACK),
                 NoteType::Triad => (Color32::GOLD, Color32::BLACK),
-                NoteType::InScale => (Color32::RED, Color32::BLACK),
+                NoteType::InPentatonic => (Color32::KHAKI, Color32::BLACK),
+                NoteType::InDiatonic => (Color32::RED, Color32::BLACK),
                 _ => (Color32::DARK_GRAY, Color32::BLACK),
             },
             false => match typ {
                 NoteType::Root => (Color32::BLACK, Color32::WHITE),
                 NoteType::Blue => (Color32::BLUE, Color32::BLACK),
                 NoteType::Triad => (Color32::GOLD, Color32::BLACK),
-                NoteType::InScale => (Color32::RED, Color32::WHITE),
+                NoteType::InPentatonic => (Color32::KHAKI, Color32::BLACK),
+                NoteType::InDiatonic => (Color32::RED, Color32::WHITE),
                 _ => (Color32::DARK_GRAY, Color32::BLACK),
             },
         }
@@ -108,14 +111,16 @@ impl Scale {
                 0 => NoteType::Root,
                 6 => NoteType::Blue,
                 3|7 => NoteType::Triad,
-                2|5|8|10 => NoteType::InScale,
+                2|8 => NoteType::InDiatonic,
+                5|10 => NoteType::InPentatonic,
                 _ => NoteType::NotInScale,
             },
             ScaleType::Major => match note_0_to_11 {
                 0 => NoteType::Root,
                 3 => NoteType::Blue,
                 4|7 => NoteType::Triad,
-                2|5|9|11 => NoteType::InScale,
+                2|9 => NoteType::InPentatonic,
+                5|11 => NoteType::InDiatonic,
                 _ => NoteType::NotInScale,
             }
         }

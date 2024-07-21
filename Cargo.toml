@@ -1,18 +1,48 @@
 [package]
-name = "rust-guitar-scales"
+name = "fretboard_scales"
+authors = ["Nick Pattison <pattison.nick@gmail.com>"]
 version = "0.1.0"
 edition = "2021"
 
-[features]
-default = ["console_error_panic_hook"]
-
 [dependencies]
-eframe = "0.27.2"
-egui = "0.27.2"
-wasm-bindgen = "0.2.92"
-console_error_panic_hook = { version = "0.1.7", optional = true }
-wee_alloc = { version = "0.4.5", optional = true }
-tracing-wasm = "0.2"
-egui_extras = "0.27.2"
-strum = "0.24.1"
-strum_macros = "0.24.3"
+
+log = "0.4"
+
+# strings and iterators for enums
+strum = "0.26"
+strum_macros = "0.26"
+
+# app persistence:
+serde = { version = "1", features = ["derive"] }
+
+# egui
+egui = "0.28.1"
+eframe = { version = "0.28.1", default-features = false, features = [
+        #"accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
+        "default_fonts", # Embed the default egui fonts.
+        "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+        "persistence",   # Enable restoring app state when restarting the app.
+] }
+egui_extras = "0.28.1"
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11.3"
+
+# build for web
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+
+# to access the DOM (to hide the loading text)
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.4"
+
+[profile.release]
+opt-level = 2 # fast and small wasm
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2
+
+
+[patch.crates-io]
