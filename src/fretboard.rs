@@ -40,6 +40,7 @@ struct DrawSettings {
 pub struct FretboardApp {
     instruments: Vec<Instrument>,
     current_instrument: usize,
+    show_settings: bool,
     settings: DrawSettings,
     scale: Scale,
 }
@@ -59,14 +60,15 @@ impl Default for FretboardApp {
                     strings: vec![7,14,21,28],
                 }
             ],
+            show_settings: true,
             settings: DrawSettings {
                 dark_mode: false,
                 frets: 9,
                 fret_marks: FretMarker::Dots,
                 note_marks: NoteMarker::Letters,
                 string_style: StringStyle::String,
-                space_string: 20.0,
-                space_fret: 40.0,
+                space_string: 50.0,
+                space_fret: 80.0,
             },
             scale: Scale {
                 siz: ScaleSize::Pentatonic,
@@ -79,8 +81,11 @@ impl Default for FretboardApp {
 impl eframe::App for FretboardApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.settings.dark_mode = ctx.style().visuals.dark_mode;
-        self.draw_panel_settings(ctx);
-        self.draw_panel_scale(ctx);
+        if self.show_settings {
+            self.draw_panel_settings(ctx);
+        }
+        self.draw_top_bar(ctx);
+        self.draw_bottom_bar(ctx);
         self.draw_panel_fretboard(ctx);
     }
 }
@@ -135,10 +140,11 @@ impl FretboardApp {
             }
         }
     }
-    fn draw_panel_scale(&mut self, ctx: &egui::Context) {
+    fn draw_top_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("the_top_panel").show(ctx, |ui|{
             ui.add_space(3.0);
             ui.heading("Instrument & Scale");
+            
             // render toolbar:
             ui.horizontal(|ui|{
     
@@ -150,6 +156,14 @@ impl FretboardApp {
                         }
                     });
                 
+                ComboBox::from_id_source("scale_size")
+                    .selected_text(format!("{:?} scale", self.scale.siz))
+                    .show_ui(ui, |inner_ui|{
+                        for s in ScaleSize::iter() {
+                            inner_ui.selectable_value(&mut self.scale.siz, s, format!("{:?}", s));
+                        }
+                    });
+                
                 ComboBox::from_id_source("scale_type")
                     .selected_text(format!("{:?} scale", self.scale.typ))
                     .show_ui(ui, |inner_ui|{
@@ -158,21 +172,24 @@ impl FretboardApp {
                         }
                     });
                 
-                ComboBox::from_id_source("scale_size")
-                    .selected_text(format!("{:?} scale", self.scale.siz))
-                    .show_ui(ui, |inner_ui|{
-                        for s in ScaleSize::iter() {
-                            inner_ui.selectable_value(&mut self.scale.siz, s, format!("{:?}", s));
-                        }
-                    });
                 ui.add(egui::Slider::new(&mut self.scale.key, 0..=11).show_value(false));
                 ui.label(format!("key of {}", NOTE_LETTERS[self.scale.key]));
+
             });
             ui.add_space(3.0);
         });
     }
+    fn draw_bottom_bar(&mut self, ctx: &egui::Context){
+        egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui|{
+            ui.add_space(2f32);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui|{
+                ui.toggle_value(&mut self.show_settings, "⚙ Visual Settings");
+            });
+            ui.add_space(1f32);
+        });
+    }
     fn draw_panel_settings(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("View Options")
+        egui::SidePanel::right("View Options")
         .resizable(false)
         .default_width(240.0)
         .show(ctx, |ui|{
