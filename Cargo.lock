@@ -553,6 +553,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-notify"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0c6c49d9c02771e28f3b40289c16b4473308807b1ed09a878713d7f11e3dcad"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "egui-winit"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -765,6 +774,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui",
+ "egui-notify",
  "egui_extras",
  "env_logger",
  "log",

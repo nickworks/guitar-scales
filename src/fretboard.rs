@@ -2,7 +2,8 @@ use egui::*;
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 use std::ops::Div;
-use crate::scales::{Scale, ScaleSize, ScaleType, NOTE_LETTERS};
+use crate::scales::{Scale, ScaleSize, ScaleType, NOTE_LETTERS, TOTAL_TONES};
+use egui_notify::Toasts;
 
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
 pub enum FretMarker {
@@ -25,8 +26,26 @@ enum StringStyle {
 }
 pub struct Instrument {
     name: String,
-    tuning: String,
     strings: Vec<usize>,
+}
+impl Default for Instrument {
+    fn default() -> Self {
+        Self {
+            name: "None".to_string(),
+            strings: vec!(),
+        }
+    }
+}
+impl Instrument {
+    fn guitar() -> Instrument {
+        Instrument {
+            name: "Guitar (standard)".to_string(),
+            strings: vec!(4,9,14,19,23,28),
+        }
+    }
+    fn name(&mut self) -> &mut String {
+        &mut self.name
+    }
 }
 struct DrawSettings {
     dark_mode: bool,
@@ -38,29 +57,32 @@ struct DrawSettings {
     space_fret: f32,
 }
 pub struct FretboardApp {
+    toasts: Toasts,
     instruments: Vec<Instrument>,
     current_instrument: usize,
     show_settings: bool,
+    show_instrument: bool,
     settings: DrawSettings,
     scale: Scale,
 }
 impl Default for FretboardApp {
     fn default() -> Self {
         Self {
+            // initialize once
+            toasts: Toasts::default(),
             current_instrument: 0,
             instruments: vec![
                 Instrument {
                     name: "Guitar".to_string(),
-                    tuning: "EADGBE".to_string(),
                     strings: vec![4,9,14,19,23,28],
                 },
                 Instrument {
                     name: "Violin".to_string(),
-                    tuning: "GDAE".to_string(),
                     strings: vec![7,14,21,28],
                 }
             ],
-            show_settings: true,
+            show_instrument: false,
+            show_settings: false,
             settings: DrawSettings {
                 dark_mode: false,
                 frets: 9,
@@ -84,9 +106,13 @@ impl eframe::App for FretboardApp {
         if self.show_settings {
             self.draw_panel_settings(ctx);
         }
+        if self.show_instrument {
+            self.draw_panel_instrument(ctx);
+        }
         self.draw_top_bar(ctx);
         self.draw_bottom_bar(ctx);
         self.draw_panel_fretboard(ctx);
+        self.toasts.show(ctx);
     }
 }
 impl FretboardApp {
@@ -143,13 +169,13 @@ impl FretboardApp {
     fn draw_top_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("the_top_panel").show(ctx, |ui|{
             ui.add_space(3.0);
-            ui.heading("Instrument & Scale");
+            ui.heading(format!("{:?} {:?} scale in {}", self.scale.siz, self.scale.typ, NOTE_LETTERS[self.scale.key]));
             
             // render toolbar:
             ui.horizontal(|ui|{
     
                 ComboBox::from_id_source("instrument")
-                    .selected_text(format!("{} ({})", &self.instrument().name, &self.instrument().tuning))
+                    .selected_text(format!("{}", &self.instrument().name))
                     .show_ui(ui, |inner_ui| {
                         for i in 0..self.instruments.len() {
                             inner_ui.selectable_value(&mut self.current_instrument, i, &self.instruments[i].name);
@@ -181,11 +207,22 @@ impl FretboardApp {
     }
     fn draw_bottom_bar(&mut self, ctx: &egui::Context){
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui|{
-            ui.add_space(2f32);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui|{
+            ui.add_space(3f32);
+            ui.horizontal(|ui| {
+                let id_gap_size = Id::new("gap_size");
+                let width_init = ui.max_rect().width();
+                let width_bttns = ui.data(|data| data.get_temp(id_gap_size).unwrap_or(width_init));
+                let width_gap = width_init - width_bttns;
+                ui.toggle_value(&mut self.show_instrument, "🎸 Instrument");
+                ui.add_space(width_gap);
                 ui.toggle_value(&mut self.show_settings, "⚙ Visual Settings");
+                // calculate the gap-size AFTER drawing toggle buttons
+                ui.data_mut(|data| data.insert_temp(
+                    id_gap_size,
+                    ui.min_rect().width() - width_gap,
+                ));
             });
-            ui.add_space(1f32);
+            ui.add_space(0f32);
         });
     }
     fn draw_panel_settings(&mut self, ctx: &egui::Context) {
@@ -241,6 +278,75 @@ impl FretboardApp {
             });
             ui.add_space(10.0);
 
+        });
+    }
+    fn draw_panel_instrument(&mut self, ctx: &egui::Context) {
+        let red = match self.settings.dark_mode { false => Color32::LIGHT_RED, true => Color32::DARK_RED };
+        let green = match self.settings.dark_mode { false => Color32::LIGHT_GREEN, true => Color32::DARK_GREEN };
+        egui::SidePanel::left("View instrument")
+        .resizable(false)
+        .default_width(240.0)
+        .show(ctx, |ui|{
+            ui.add_space(5.0);
+            ui.heading("Instruments");
+            ui.add_space(14f32);
+            ui.horizontal(|ui|{
+                ComboBox::from_id_source("instrument")
+                .selected_text(format!("{:.28}", &self.instrument().name))
+                .width(100f32)
+                .truncate()
+                .show_ui(ui, |inner_ui| {
+                    for i in 0..self.instruments.len() {
+                        inner_ui.selectable_value(&mut self.current_instrument, i, &self.instruments[i].name);
+                    }
+                });
+                if ui.add(Button::new("New").fill(green)).clicked() {
+                    self.instruments.push(Instrument::guitar());
+                    self.current_instrument = self.instruments.len() - 1;
+                };
+            });
+            ui.add_space(14f32);
+            egui::Grid::new("instrument_meta").show(ui, |ui|{
+                let name = self.instruments[self.current_instrument].name();
+                ui.label("Name");
+                ui.add(egui::TextEdit::singleline(name).min_size(Vec2{x:130f32,y:20f32}).char_limit(30));
+                ui.end_row();
+                ui.label("Strings");
+                if ui.add(Button::new("Add string").fill(green)).clicked() {
+                    let new_string = self.instruments[self.current_instrument].strings[self.strings().len() - 1] + 5;
+                    self.instruments[self.current_instrument].strings.push(new_string);
+                }
+                ui.end_row();
+            });
+            ui.add_space(12f32);
+            egui::Grid::new("instrument_grid").show(ui, |ui|{
+                for i in (0..*&self.strings().len()).rev() {
+                    let caption = NOTE_LETTERS[self.strings()[i]%12];
+                    ui.label(format!("   #{}", i+1));
+                    ComboBox::from_id_source(i)
+                        .selected_text(caption)
+                        .show_ui(ui, |inner_ui| {
+                            for ii in 0..TOTAL_TONES {
+                                inner_ui.selectable_value(&mut self.instruments[self.current_instrument].strings[i], ii, self.scale.get_note_letter(ii));
+                            }
+                        });
+                    if ui.add(Button::new(" X ").fill(red)).clicked() {
+                        self.instruments[self.current_instrument].strings.remove(i);
+                    }
+                    ui.end_row();
+                }
+            });
+            ui.add_space(14.0);
+            if ui.add(Button::new(" Delete instrument ").fill(red)).clicked() {
+                if self.instruments.len() > 1 {
+                    self.instruments.remove(self.current_instrument);
+                    if self.current_instrument + 1 >= self.instruments.len() {
+                        self.current_instrument = match self.instruments.len() { 0 => 0, _ => self.instruments.len() - 1 };
+                    }
+                } else {
+                    self.toasts.error("You may not delete your only instrument.");
+                }
+            }
         });
     }
     fn draw_panel_fretboard(&mut self, ctx: &egui::Context){
