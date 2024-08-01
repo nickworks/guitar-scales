@@ -333,20 +333,25 @@ impl FretboardApp {
 
             let num_frets = self.settings.frets + 1;
             
+            // the "width" of the fret board
             let fretboard_size = (self.strings().len() as f32) * self.settings.space_string;
             let half_size = fretboard_size/2f32;
+
+            // rect position
             let rect = ui.available_rect_before_wrap();
-            let center = match self.settings.vertical {
-                false => rect.center().y,
-                true => rect.center().x,
-            };
-            let gap_to_fret_markers = 10f32;
-            let d_fret_marker1 = center - half_size as f32 - gap_to_fret_markers;
-            let d_fret_marker2 = center + half_size as f32 + gap_to_fret_markers;
             let offset:f32 = 10f32 + match self.settings.vertical {
                 true => rect.top(),
                 false => rect.left(),
             };
+            let center = match self.settings.vertical {
+                false => rect.center().y,
+                true => rect.center().x,
+            };
+            // fret marker positions
+            let gap_to_fret_markers = 10f32;
+            let d_fret_marker1 = center - half_size as f32 - gap_to_fret_markers;
+            let d_fret_marker2 = center + half_size as f32 + gap_to_fret_markers;
+            
             // paint frets and fret-markers
             for fret in 0..num_frets {
                 let mut pos_down_neck = fret as f32 * self.settings.space_fret + offset;
@@ -365,7 +370,10 @@ impl FretboardApp {
             }
             // paint strings and notes
             for i in 0..*&self.strings().len() {
-                let string = self.strings()[self.strings().len() - i - 1];
+                let string = self.strings()[ match self.settings.vertical {
+                    true => i,
+                    false => self.strings().len() - i - 1,
+                }];
 
                 let cell_pree :f32= center - half_size + (i as f32 * self.settings.space_string);
                 let cell_post :f32= cell_pree + self.settings.space_string;
