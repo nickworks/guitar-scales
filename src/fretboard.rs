@@ -16,7 +16,6 @@ pub enum NoteMarker {
     AllNotes,
     Letters,
     Numbers,
-    Triads,
     Debug,
 }
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
@@ -79,13 +78,17 @@ impl Default for FretboardApp {
                 Instrument {
                     name: "Violin".to_string(),
                     strings: vec![7,14,21,28],
-                }
+                },
+                Instrument {
+                    name: "Cello".to_string(),
+                    strings: vec![0,7,14,21],
+                },
             ],
             show_instrument: false,
             show_settings: false,
             settings: DrawSettings {
                 dark_mode: false,
-                frets: 9,
+                frets: 12,
                 fret_marks: FretMarker::Dots,
                 note_marks: NoteMarker::Letters,
                 string_style: StringStyle::String,
@@ -183,7 +186,7 @@ impl FretboardApp {
                     });
                 
                 ComboBox::from_id_source("scale_size")
-                    .selected_text(format!("{:?} scale", self.scale.siz))
+                    .selected_text(format!("{:?}", self.scale.siz))
                     .show_ui(ui, |inner_ui|{
                         for s in ScaleSize::iter() {
                             inner_ui.selectable_value(&mut self.scale.siz, s, format!("{:?}", s));

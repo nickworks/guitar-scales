@@ -10,6 +10,8 @@ pub enum ScaleSize {
     Diatonic,
     Blues,
     Pentatonic,
+    TriadsOnly,
+    RootOnly,
 }
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
 pub enum ScaleType {
@@ -62,11 +64,15 @@ impl Scale {
                 ScaleSize::Diatonic => vec!(0,2,3,5,7,8,10),
                 ScaleSize::Blues => vec!(0,3,5,6,7,10),
                 ScaleSize::Pentatonic => vec!(0,3,5,7,10),
+                ScaleSize::TriadsOnly => vec!(0,3,7),
+                ScaleSize::RootOnly => vec!(0),
             },
             ScaleType::Major => match self.siz {
                 ScaleSize::Diatonic => vec!(0,2,4,5,7,9,11),
                 ScaleSize::Blues => vec!(0,2,3,4,7,9),
                 ScaleSize::Pentatonic => vec!(0,2,4,7,9),
+                ScaleSize::TriadsOnly => vec!(0,4,7),
+                ScaleSize::RootOnly => vec!(0),
             },
         }
     }
@@ -145,10 +151,6 @@ impl Scale {
                 }
             },
             true => match note_marker {
-                NoteMarker::Triads => match typ {
-                    NoteType::Root | NoteType::Triad => bubble_number,
-                    _ => Bubble::blank(),
-                },
                 NoteMarker::AllNotes | NoteMarker::Letters => bubble_letter,
                 NoteMarker::Numbers => bubble_number,
                 NoteMarker::Debug => bubble_debug,
