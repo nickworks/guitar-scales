@@ -48,6 +48,7 @@ impl Instrument {
 }
 struct DrawSettings {
     dark_mode: bool,
+    vertical: bool,
     frets: usize,
     fret_marks: FretMarker,
     note_marks: NoteMarker,
@@ -88,6 +89,7 @@ impl Default for FretboardApp {
             show_settings: false,
             settings: DrawSettings {
                 dark_mode: false,
+                vertical: true,
                 frets: 12,
                 fret_marks: FretMarker::Dots,
                 note_marks: NoteMarker::Letters,
@@ -127,47 +129,6 @@ impl FretboardApp {
     }
     pub fn strings(&self) -> &Vec<usize> {
         &self.instrument().strings
-    }
-    fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
-        let is_octave = fret % 12 == 0;
-        let draw_dot = |p|{
-            painter.circle_filled(p, 3f32, match self.settings.dark_mode {
-                false => Color32::BLACK,
-                true => Color32::WHITE,
-            });
-        };
-        match match fret.try_into().unwrap_or(0) {
-            3|5|7|9|12|15|17|19 => self.settings.fret_marks,
-            _ => FretMarker::None,
-        } {
-            FretMarker::None => {},
-            FretMarker::Dots => {
-                match is_octave {
-                    false => draw_dot(pos),
-                    true => {
-                        pos.x += 4.0;
-                        draw_dot(pos);
-                        pos.x -= 8.0;
-                        draw_dot(pos);
-                    }
-                }
-            },
-            FretMarker::Numbers => {
-                painter.text(
-                    pos,
-                    Align2::CENTER_CENTER,
-                    (fret).to_string(),
-                    FontId {
-                        size: 12f32,
-                        family: FontFamily::Monospace,
-                    },
-                    match is_octave {
-                        false => match self.settings.dark_mode { true => Color32::WHITE, false => Color32::BLACK },
-                        true => match self.settings.dark_mode { true => Color32::GOLD, false => Color32::BLUE },
-                    }
-                );
-            }
-        }
     }
     fn draw_top_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("the_top_panel").show(ctx, |ui|{
@@ -240,6 +201,13 @@ impl FretboardApp {
             egui::Grid::new("settings")
             .striped(true)
             .show(ui, |ui|{
+                ui.label("vertical fretboard");
+                let label = match self.settings.vertical {
+                    true => "On",
+                    false => "Off",
+                };
+                ui.toggle_value(&mut self.settings.vertical, label);
+                ui.end_row();
                 ui.label(format!("{} frets", self.settings.frets));
                 ui.add(egui::Slider::new(&mut self.settings.frets, 4..= 25).show_value(false));
                 ui.end_row();
@@ -363,95 +331,169 @@ impl FretboardApp {
         );
         egui::CentralPanel::default().show(ctx, |ui|{
 
-            let num_cols = self.settings.frets + 1;
-            // start first row
-
-            let rect = ui.available_rect_before_wrap();
-            let x_left = rect.left();
-            let x_right = rect.right();
-            let y_top = rect.top() + 30f32;
-            let y_bottom = y_top + self.strings().len() as f32 * self.settings.space_string;
+            let num_frets = self.settings.frets + 1;
             
+            let fretboard_size = (self.strings().len() as f32) * self.settings.space_string;
+            let half_size = fretboard_size/2f32;
+            let rect = ui.available_rect_before_wrap();
+            let center = match self.settings.vertical {
+                false => rect.center().y,
+                true => rect.center().x,
+            };
+            let gap_to_fret_markers = 10f32;
+            let d_fret_marker1 = center - half_size as f32 - gap_to_fret_markers;
+            let d_fret_marker2 = center + half_size as f32 + gap_to_fret_markers;
+            let offset:f32 = 10f32 + match self.settings.vertical {
+                true => rect.top(),
+                false => rect.left(),
+            };
             // paint frets and fret-markers
-            for fret in 0..num_cols {
-                let mut fret_x = x_left + fret as f32 * self.settings.space_fret;
-                self.draw_fret_marker(fret, painter.to_owned(), Pos2 { x: fret_x, y: y_top - 15f32 });
-                self.draw_fret_marker(fret, painter.to_owned(), Pos2 { x: fret_x, y: y_bottom + 15f32 });
-                fret_x += self.settings.space_fret.div(2f32);
-                painter.line_segment(
-                    [
-                        Pos2 { x:fret_x, y:y_top },
-                        Pos2 { x:fret_x, y:y_bottom },
-                    ],
-                    Stroke {
-                        width: match fret {
-                            0 => 3.,
-                            _ => 1.
-                        },
-                        color: match fret {
-                            0 => match self.settings.dark_mode {
-                                false => Color32::BLACK,
-                                true => Color32::WHITE,
-                            },
-                            _ => match self.settings.dark_mode {
-                                false => Color32::LIGHT_GRAY,
-                                true => Color32::DARK_GRAY,
-                            },
-                        }
-                    }
-                );
+            for fret in 0..num_frets {
+                let mut pos_down_neck = fret as f32 * self.settings.space_fret + offset;
+                let pos_fret_marker1 = match self.settings.vertical {
+                    true => Pos2 { x: d_fret_marker1, y: pos_down_neck },
+                    false => Pos2 { x: pos_down_neck, y: d_fret_marker1 },
+                };
+                let pos_fret_marker2 = match self.settings.vertical {
+                    true => Pos2 { x: d_fret_marker2, y: pos_down_neck },
+                    false => Pos2 { x: pos_down_neck, y: d_fret_marker2 },
+                };
+                self.draw_fret_marker(fret, painter.to_owned(), pos_fret_marker1);
+                self.draw_fret_marker(fret, painter.to_owned(), pos_fret_marker2);
+                pos_down_neck += self.settings.space_fret.div(2f32);
+                self.draw_fret(painter.to_owned(), fret, pos_down_neck, center, half_size);
             }
             // paint strings and notes
             for i in 0..*&self.strings().len() {
                 let string = self.strings()[self.strings().len() - i - 1];
-                let yt :f32= y_top + (0f32 + i as f32) * self.settings.space_string;
-                let yb :f32= y_top + (1f32 + i as f32) * self.settings.space_string;
-                let yc = (yt + yb)/2f32;
+
+                let cell_pree :f32= center - half_size + (i as f32 * self.settings.space_string);
+                let cell_post :f32= cell_pree + self.settings.space_string;
+                let cell_middle = (cell_pree + cell_post)/2f32;
+
                 // draw horizontal line (string):
                 match self.settings.string_style {
                     StringStyle::String => {
-                        painter.line_segment(
-                            [
-                                Pos2::new(x_left, yc),
-                                Pos2::new(x_right, yc),
-                            ],
-                            Stroke::new(1.0, match self.settings.dark_mode {
-                                false => Color32::BLACK,
-                                true => Color32::WHITE,
-                            }),
-                        );
+                        self.draw_line(painter.to_owned(), rect, cell_middle);
                     },
                     StringStyle::Cells => {
-                        painter.line_segment(
-                            [
-                                Pos2::new(x_left,yt),
-                                Pos2::new(x_right, yt),
-                            ],
-                            Stroke::new(1.0, match self.settings.dark_mode {
-                                false => Color32::BLACK,
-                                true => Color32::WHITE,
-                            }),
-                        );
-                        painter.line_segment(
-                            [
-                                Pos2::new(x_left, yb),
-                                Pos2::new(x_right, yb),
-                            ],
-                            Stroke::new(1.0, match self.settings.dark_mode {
-                                false => Color32::BLACK,
-                                true => Color32::WHITE,
-                            }),
-                        );
+                        self.draw_line(painter.to_owned(), rect, cell_pree);
+                        self.draw_line(painter.to_owned(), rect, cell_post);
                     },
                 };
+
                 // paint notes:
-                for fret in 0..(num_cols) {
+                for fret in 0..(num_frets) {
                     let b = self.scale.get_bubble(self.settings.dark_mode, string + fret, self.scale.key, self.settings.note_marks);
-                    let pos = Pos2 {x: x_left + fret as f32 * self.settings.space_fret, y: yc };
+                    let pos = match self.settings.vertical {
+                        false => Pos2 { x: offset + fret as f32 * self.settings.space_fret, y: cell_middle },
+                        true => Pos2 { x: cell_middle, y: offset + fret as f32 * self.settings.space_fret },
+                    };
                     painter.circle_filled(pos, 12f32, b.color);
                     painter.text(pos, Align2::CENTER_CENTER, b.text, FontId { size: 13f32, family: FontFamily::Monospace}, b.text_color);
                 }
             }
         });
+    }
+    fn draw_line(&self, painter:Painter, rect:Rect, pos:f32){
+        painter.line_segment(
+            match self.settings.vertical {
+                false => [
+                    Pos2::new(rect.left(), pos),
+                    Pos2::new(rect.right(), pos),
+                ],
+                true => [
+                    Pos2::new(pos, rect.top()),
+                    Pos2::new(pos, rect.bottom()),
+                ],
+            },
+            Stroke::new(1.0, match self.settings.dark_mode {
+                false => Color32::BLACK,
+                true => Color32::WHITE,
+            }),
+        );
+    }
+    fn draw_fret(&self, painter:Painter, fret:usize, offset:f32, center:f32, half_width:f32) {
+        painter.line_segment(
+            match self.settings.vertical {
+                true => [
+                    Pos2 {
+                        x: center - half_width,
+                        y: offset,
+                    },
+                    Pos2 {
+                        x: center + half_width,
+                        y: offset,
+                    },
+                ],
+                false => [
+                    Pos2 {
+                        x: offset,
+                        y: center - half_width,
+                    },
+                    Pos2 {
+                        x: offset,
+                        y: center + half_width,
+                    },
+                ],
+            },
+            Stroke {
+                width: match fret {
+                    0 => 3.,
+                    _ => 1.
+                },
+                color: match fret {
+                    0 => match self.settings.dark_mode {
+                        false => Color32::BLACK,
+                        true => Color32::WHITE,
+                    },
+                    _ => match self.settings.dark_mode {
+                        false => Color32::LIGHT_GRAY,
+                        true => Color32::DARK_GRAY,
+                    },
+                }
+            }
+        );
+    }
+    fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
+        let is_octave = fret % 12 == 0;
+        let draw_dot = |p|{
+            painter.circle_filled(p, 3f32, match self.settings.dark_mode {
+                false => Color32::BLACK,
+                true => Color32::WHITE,
+            });
+        };
+        match match fret.try_into().unwrap_or(0) {
+            3|5|7|9|12|15|17|19 => self.settings.fret_marks,
+            _ => FretMarker::None,
+        } {
+            FretMarker::None => {},
+            FretMarker::Dots => {
+                match is_octave {
+                    false => draw_dot(pos),
+                    true => {
+                        pos.x += 4.0;
+                        draw_dot(pos);
+                        pos.x -= 8.0;
+                        draw_dot(pos);
+                    }
+                }
+            },
+            FretMarker::Numbers => {
+                painter.text(
+                    pos,
+                    Align2::CENTER_CENTER,
+                    (fret).to_string(),
+                    FontId {
+                        size: 12f32,
+                        family: FontFamily::Monospace,
+                    },
+                    match is_octave {
+                        false => match self.settings.dark_mode { true => Color32::WHITE, false => Color32::BLACK },
+                        true => match self.settings.dark_mode { true => Color32::GOLD, false => Color32::BLUE },
+                    }
+                );
+            }
+        }
     }
 }
