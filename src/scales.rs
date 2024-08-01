@@ -157,4 +157,30 @@ impl Scale {
             },
         };
     }
+    pub fn get_bubble_from(&self, dark_mode:bool, note:NoteType, marker:NoteMarker) -> Bubble {
+        let note_0_to_11 =  (match self.typ {
+            ScaleType::Minor => match note {
+                NoteType::Root => 0,
+                NoteType::Triad => 3,
+                NoteType::InPentatonic => 5,
+                NoteType::Blue => 6,
+                NoteType::InDiatonic => 8,
+                _ => 12,
+            },
+            ScaleType::Major => match note {
+                NoteType::Root => 0,
+                NoteType::Triad => 4,
+                NoteType::InPentatonic => 2,
+                NoteType::Blue => 3,
+                NoteType::InDiatonic => 5,
+                _ => 0,
+            },
+        } as i8 + self.key as i8) as usize % TOTAL_TONES;
+        let colors = Scale::color_lookup(dark_mode, note);
+        Bubble::new(colors, match marker {
+            NoteMarker::AllNotes | NoteMarker::Letters => self.get_note_letter(note_0_to_11),
+            NoteMarker::Numbers => self.get_note_number(note_0_to_11),
+            NoteMarker::Debug => note_0_to_11.to_string(),
+        })
+    }
 }

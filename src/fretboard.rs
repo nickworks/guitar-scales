@@ -2,7 +2,7 @@ use egui::*;
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 use std::ops::Div;
-use crate::scales::{Scale, ScaleSize, ScaleType, NOTE_LETTERS, TOTAL_TONES};
+use crate::scales::{NoteType, Scale, ScaleSize, ScaleType, NOTE_LETTERS, TOTAL_TONES};
 use egui_notify::Toasts;
 
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
@@ -49,6 +49,7 @@ impl Instrument {
 struct DrawSettings {
     dark_mode: bool,
     vertical: bool,
+    show_legend: bool,
     frets: usize,
     fret_marks: FretMarker,
     note_marks: NoteMarker,
@@ -90,6 +91,7 @@ impl Default for FretboardApp {
             settings: DrawSettings {
                 dark_mode: false,
                 vertical: true,
+                show_legend: true,
                 frets: 12,
                 fret_marks: FretMarker::Dots,
                 note_marks: NoteMarker::Letters,
@@ -207,6 +209,13 @@ impl FretboardApp {
                     false => "Off",
                 };
                 ui.toggle_value(&mut self.settings.vertical, label);
+                ui.end_row();
+                ui.label("show legend");
+                let label = match self.settings.show_legend {
+                    true => "On",
+                    false => "Off",
+                };
+                ui.toggle_value(&mut self.settings.show_legend, label);
                 ui.end_row();
                 ui.label(format!("{} frets", self.settings.frets));
                 ui.add(egui::Slider::new(&mut self.settings.frets, 4..= 25).show_value(false));
@@ -401,6 +410,11 @@ impl FretboardApp {
                     painter.text(pos, Align2::CENTER_CENTER, b.text, FontId { size: 13f32, family: FontFamily::Monospace}, b.text_color);
                 }
             }
+        
+            // paint legend
+            if self.settings.show_legend {
+                self.draw_legend(rect, painter);
+            }
         });
     }
     fn draw_line(&self, painter:Painter, rect:Rect, pos:f32){
@@ -415,10 +429,7 @@ impl FretboardApp {
                     Pos2::new(pos, rect.bottom()),
                 ],
             },
-            Stroke::new(1.0, match self.settings.dark_mode {
-                false => Color32::BLACK,
-                true => Color32::WHITE,
-            }),
+            self.stroke(1f32),
         );
     }
     fn draw_fret(&self, painter:Painter, fret:usize, offset:f32, center:f32, half_width:f32) {
@@ -445,22 +456,10 @@ impl FretboardApp {
                     },
                 ],
             },
-            Stroke {
-                width: match fret {
-                    0 => 3.,
-                    _ => 1.
-                },
-                color: match fret {
-                    0 => match self.settings.dark_mode {
-                        false => Color32::BLACK,
-                        true => Color32::WHITE,
-                    },
-                    _ => match self.settings.dark_mode {
-                        false => Color32::LIGHT_GRAY,
-                        true => Color32::DARK_GRAY,
-                    },
-                }
-            }
+            self.stroke(match fret {
+                0 => 3f32,
+                _ => 1f32,
+            }),
         );
     }
     fn draw_fret_marker(&self, fret:usize, painter:Painter, mut pos:Pos2){
@@ -503,5 +502,44 @@ impl FretboardApp {
                 );
             }
         }
+    }
+    fn draw_legend(&self, rect:Rect, painter:Painter){
+
+        let m = 10f32;
+        let w = 250f32;
+        let h = 165f32;
+        let bg = Rect {
+            min: Pos2 { x: rect.right() - m - w, y: rect.bottom() - m - h },
+            max: Pos2 { x: rect.right() - m, y: rect.bottom() - m },
+        };
+        painter.rect(bg, Rounding::same(4f32), match self.settings.dark_mode {
+            true => Color32::DARK_GRAY,
+            false => Color32::LIGHT_GRAY,
+        }, self.stroke(1f32));
+        let draw_dot = |x:f32, y:f32, n, str|{
+            let pos = Pos2 { x: bg.min.x + x, y: bg.min.y + y };
+            let b = self.scale.get_bubble_from(self.settings.dark_mode, n, self.settings.note_marks);
+            painter.circle_filled(pos, 12f32, b.color);
+            painter.text(pos, Align2::CENTER_CENTER, b.text, FontId { size: 13f32, family: FontFamily::Monospace}, b.text_color);
+            painter.text(
+                Pos2 { x: pos.x + 30f32, y: pos.y}, 
+                Align2::LEFT_CENTER, 
+                str,
+                FontId { size: 13f32, family: FontFamily::Monospace },
+                match self.settings.dark_mode { true => Color32::WHITE, false => Color32::BLACK }
+            );
+        };
+        draw_dot(20f32, 20f32, NoteType::Root, "Root notes");
+        draw_dot(20f32, 80f32, NoteType::InPentatonic, "Notes in scale (penta)");
+        draw_dot(20f32, 140f32, NoteType::InDiatonic, "Notes in scale (natural)");
+        draw_dot(20f32, 50f32, NoteType::Triad, "Triad notes");
+        draw_dot(20f32, 110f32, NoteType::Blue, "Blue notes");
+
+    }
+    fn stroke(&self, weight:f32) -> Stroke {
+        Stroke::new(weight, match self.settings.dark_mode {
+            false => Color32::BLACK,
+            true => Color32::WHITE,
+        })
     }
 }
