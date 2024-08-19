@@ -9,7 +9,7 @@ fn main(){
     let _result = eframe::run_native(
         "guitar-scales",
         eframe::NativeOptions::default(),
-        Box::new(|_cc| Ok(Box::new(FretboardApp::new()))),
+        Box::new(|cc| Ok(Box::new(FretboardApp::new(cc)))),
     );
 }
 
@@ -25,7 +25,7 @@ fn main() {
             .start(
                 "guitar-scales",
                 web_options,
-                Box::new(|_cc| Ok(Box::new(FretboardApp::new()))),
+                Box::new(|cc| Ok(Box::new(FretboardApp::new(cc)))),
             )
             .await;
 
@@ -47,4 +47,9 @@ fn main() {
             }
         }
     });
+}
+
+pub fn is_mobile(ctx: &egui::Context) -> bool {
+    let screen_size = ctx.screen_rect().size();
+    screen_size.x < 550.0
 }

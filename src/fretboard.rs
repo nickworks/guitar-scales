@@ -2,7 +2,7 @@ use egui::*;
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 use std::ops::Div;
-use crate::scales::{NoteType, Scale, ScaleSize, ScaleType, NOTE_LETTERS, TOTAL_TONES};
+use crate::scales::{note_letter, NoteType, Scale, ScaleSize, ScaleType, TOTAL_TONES};
 use egui_notify::Toasts;
 
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
@@ -22,6 +22,12 @@ pub enum NoteMarker {
 enum StringStyle {
     String,
     Cells,
+}
+#[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
+enum Panel {
+    None,
+    Instrument,
+    ViewSettings,
 }
 pub struct Instrument {
     name: String,
@@ -56,13 +62,13 @@ struct DrawSettings {
     string_style: StringStyle,
     space_string: f32,
     space_fret: f32,
+    dot_size:f32,
 }
 pub struct FretboardApp {
     toasts: Toasts,
     instruments: Vec<Instrument>,
     current_instrument: usize,
-    show_settings: bool,
-    show_instrument: bool,
+    open_panel: Panel,
     settings: DrawSettings,
     scale: Scale,
 }
@@ -71,6 +77,7 @@ impl Default for FretboardApp {
         Self {
             // initialize once
             toasts: Toasts::default(),
+            open_panel:Panel::ViewSettings,
             current_instrument: 0,
             instruments: vec![
                 Instrument {
@@ -85,9 +92,11 @@ impl Default for FretboardApp {
                     name: "Cello".to_string(),
                     strings: vec![0,7,14,21],
                 },
+                Instrument {
+                    name: "Ukulele".to_string(),
+                    strings: vec![7,12,16,21],
+                },
             ],
-            show_instrument: false,
-            show_settings: false,
             settings: DrawSettings {
                 dark_mode: false,
                 vertical: true,
@@ -97,7 +106,8 @@ impl Default for FretboardApp {
                 note_marks: NoteMarker::Letters,
                 string_style: StringStyle::String,
                 space_string: 50.0,
-                space_fret: 80.0,
+                space_fret: 50.0,
+                dot_size:16f32,
             },
             scale: Scale {
                 siz: ScaleSize::Pentatonic,
@@ -110,20 +120,54 @@ impl Default for FretboardApp {
 impl eframe::App for FretboardApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.settings.dark_mode = ctx.style().visuals.dark_mode;
-        if self.show_settings {
-            self.draw_panel_settings(ctx);
-        }
-        if self.show_instrument {
-            self.draw_panel_instrument(ctx);
-        }
         self.draw_top_bar(ctx);
-        self.draw_bottom_bar(ctx);
+        match self.open_panel {
+            Panel::Instrument => self.draw_panel_instrument(ctx),
+            Panel::ViewSettings => self.draw_panel_settings(ctx),
+            _ => {},
+        }
         self.draw_panel_fretboard(ctx);
         self.toasts.show(ctx);
     }
 }
+fn setup_custom_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    // .ttf and .otf files supported.
+    fonts.font_data.insert(
+        "my_font".to_owned(),
+        egui::FontData::from_static(include_bytes!(
+            //"../assets/noto/NotoMusic-Regular.ttf",
+            "../Lucida.ttf",
+            //"../FiraSans-Regular.otf"
+            //"../GoogleSans-Regular.ttf"
+            //"../SF-Pro.ttf"
+        )),
+    );
+    // Put my font as highest priority for the monospace font definition
+    fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "my_font".to_owned());
+    
+    fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .insert(0, "my_font".to_owned());
+
+    // Tell egui to use these fonts:
+    ctx.set_fonts(fonts);
+}
+fn font_glyph() -> FontId {
+    font(18f32, FontFamily::Proportional)
+}
+fn font(size:f32, family:FontFamily) -> FontId {
+    FontId { size:size, family:family }
+}
 impl FretboardApp {
-    pub fn new() -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        setup_custom_fonts(&cc.egui_ctx);
         Self::default()
     }
     pub fn instrument(&self) -> &Instrument {
@@ -135,19 +179,39 @@ impl FretboardApp {
     fn draw_top_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("the_top_panel").show(ctx, |ui|{
             ui.add_space(3.0);
-            ui.heading(format!("{:?} {:?} scale in {}", self.scale.siz, self.scale.typ, NOTE_LETTERS[self.scale.key]));
-            
+            ui.heading(format!("{} {:?} {}", self.scale.get_note_letter(self.scale.key), self.scale.typ, match self.scale.siz {
+                ScaleSize::Blues => "Blues scale",
+                ScaleSize::Pentatonic => "Pentatonic scale",
+                ScaleSize::Diatonic => "Natural scale",
+                ScaleSize::TriadsOnly => "triads",
+                ScaleSize::RootOnly => "roots",
+            }));
+
             // render toolbar:
             ui.horizontal(|ui|{
-    
-                ComboBox::from_id_source("instrument")
-                    .selected_text(format!("{}", &self.instrument().name))
-                    .show_ui(ui, |inner_ui| {
-                        for i in 0..self.instruments.len() {
-                            inner_ui.selectable_value(&mut self.current_instrument, i, &self.instruments[i].name);
+                let mut show_settings = self.open_panel == Panel::ViewSettings;
+                if ui.toggle_value(&mut show_settings, "👁 Settings").clicked(){
+                    self.open_panel = match self.open_panel {
+                        Panel::ViewSettings => Panel::None,
+                        _ => Panel::ViewSettings,
+                    };
+                }
+                let mut show_instrument = self.open_panel == Panel::Instrument;
+                if ui.toggle_value(&mut show_instrument, "🎸 Instruments").clicked() {
+                    self.open_panel = match self.open_panel {
+                        Panel::Instrument => Panel::None,
+                        _ => Panel::Instrument,
+                    };
+                }
+                ui.add(egui::Slider::new(&mut self.scale.key, 0..=11).show_value(false));
+                ui.label(format!("key of {}", self.scale.get_note_letter(self.scale.key)));
+                ComboBox::from_id_source("scale_type")
+                    .selected_text(format!("{:?}", self.scale.typ))
+                    .show_ui(ui, |inner_ui|{
+                        for s in ScaleType::iter() {
+                            inner_ui.selectable_value(&mut self.scale.typ, s, format!("{:?}", s));
                         }
                     });
-                
                 ComboBox::from_id_source("scale_size")
                     .selected_text(format!("{:?}", self.scale.siz))
                     .show_ui(ui, |inner_ui|{
@@ -155,54 +219,24 @@ impl FretboardApp {
                             inner_ui.selectable_value(&mut self.scale.siz, s, format!("{:?}", s));
                         }
                     });
-                
-                ComboBox::from_id_source("scale_type")
-                    .selected_text(format!("{:?} scale", self.scale.typ))
-                    .show_ui(ui, |inner_ui|{
-                        for s in ScaleType::iter() {
-                            inner_ui.selectable_value(&mut self.scale.typ, s, format!("{:?}", s));
-                        }
-                    });
-                
-                ui.add(egui::Slider::new(&mut self.scale.key, 0..=11).show_value(false));
-                ui.label(format!("key of {}", NOTE_LETTERS[self.scale.key]));
-
             });
             ui.add_space(3.0);
         });
     }
-    fn draw_bottom_bar(&mut self, ctx: &egui::Context){
-        egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui|{
-            ui.add_space(3f32);
-            ui.horizontal(|ui| {
-                let id_gap_size = Id::new("gap_size");
-                let width_init = ui.max_rect().width();
-                let width_bttns = ui.data(|data| data.get_temp(id_gap_size).unwrap_or(width_init));
-                let width_gap = width_init - width_bttns;
-                ui.toggle_value(&mut self.show_instrument, "🎸 Instrument");
-                ui.add_space(width_gap);
-                ui.toggle_value(&mut self.show_settings, "⚙ Visual Settings");
-                // calculate the gap-size AFTER drawing toggle buttons
-                ui.data_mut(|data| data.insert_temp(
-                    id_gap_size,
-                    ui.min_rect().width() - width_gap,
-                ));
-            });
-            ui.add_space(0f32);
-        });
-    }
     fn draw_panel_settings(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right("View Options")
+        egui::SidePanel::left("View Options")
         .resizable(false)
         .default_width(240.0)
         .show(ctx, |ui|{
             ui.add_space(5.0);
             ui.heading("View Options");
+            ui.add_space(14f32);
             // render toolbar:
-            egui::widgets::global_dark_light_mode_buttons(ui);
             egui::Grid::new("settings")
-            .striped(true)
             .show(ui, |ui|{
+                ui.label("theme");
+                egui::widgets::global_dark_light_mode_switch(ui);
+                ui.end_row();
                 ui.label("vertical fretboard");
                 let label = match self.settings.vertical {
                     true => "On",
@@ -251,7 +285,7 @@ impl FretboardApp {
                     });
                 ui.end_row();
                 ui.label("string spacing");
-                ui.add(egui::Slider::new(&mut self.settings.space_string, 20.0..=60.0).show_value(false));
+                ui.add(egui::Slider::new(&mut self.settings.space_string, 40.0..=100.0).show_value(false));
                 ui.end_row();
                 ui.label("fret spacing");
                 ui.add(egui::Slider::new(&mut self.settings.space_fret, 40.0..=100.0).show_value(false));
@@ -298,10 +332,10 @@ impl FretboardApp {
                 }
                 ui.end_row();
             });
-            ui.add_space(12f32);
+            ui.add_space(6f32);
             egui::Grid::new("instrument_grid").show(ui, |ui|{
                 for i in (0..*&self.strings().len()).rev() {
-                    let caption = NOTE_LETTERS[self.strings()[i]%12];
+                    let caption = note_letter(self.strings()[i]%12, true);
                     ui.label(format!("   #{}", i+1));
                     ComboBox::from_id_source(i)
                         .selected_text(caption)
@@ -401,13 +435,13 @@ impl FretboardApp {
 
                 // paint notes:
                 for fret in 0..(num_frets) {
-                    let b = self.scale.get_bubble(self.settings.dark_mode, string + fret, self.scale.key, self.settings.note_marks);
+                    let b = self.scale.get_bubble(self.settings.dark_mode, string + fret, self.settings.note_marks);
                     let pos = match self.settings.vertical {
                         false => Pos2 { x: offset + fret as f32 * self.settings.space_fret, y: cell_middle },
                         true => Pos2 { x: cell_middle, y: offset + fret as f32 * self.settings.space_fret },
                     };
-                    painter.circle_filled(pos, 12f32, b.color);
-                    painter.text(pos, Align2::CENTER_CENTER, b.text, FontId { size: 13f32, family: FontFamily::Monospace}, b.text_color);
+                    painter.circle_filled(pos, self.settings.dot_size, b.color);
+                    painter.text(pos, Align2::CENTER_CENTER, b.text, font_glyph(), b.text_color);
                 }
             }
         
@@ -491,10 +525,7 @@ impl FretboardApp {
                     pos,
                     Align2::CENTER_CENTER,
                     (fret).to_string(),
-                    FontId {
-                        size: 12f32,
-                        family: FontFamily::Monospace,
-                    },
+                    font(12f32, FontFamily::Monospace),
                     match is_octave {
                         false => match self.settings.dark_mode { true => Color32::WHITE, false => Color32::BLACK },
                         true => match self.settings.dark_mode { true => Color32::GOLD, false => Color32::BLUE },
@@ -504,7 +535,6 @@ impl FretboardApp {
         }
     }
     fn draw_legend(&self, rect:Rect, painter:Painter){
-
         let m = 10f32;
         let w = 250f32;
         let h = 165f32;
@@ -519,13 +549,13 @@ impl FretboardApp {
         let draw_dot = |x:f32, y:f32, n, str|{
             let pos = Pos2 { x: bg.min.x + x, y: bg.min.y + y };
             let b = self.scale.get_bubble_from(self.settings.dark_mode, n, self.settings.note_marks);
-            painter.circle_filled(pos, 12f32, b.color);
-            painter.text(pos, Align2::CENTER_CENTER, b.text, FontId { size: 13f32, family: FontFamily::Monospace}, b.text_color);
+            painter.circle_filled(pos, self.settings.dot_size, b.color);
+            painter.text(pos, Align2::CENTER_CENTER, b.text, font_glyph(), b.text_color);
             painter.text(
                 Pos2 { x: pos.x + 30f32, y: pos.y}, 
                 Align2::LEFT_CENTER, 
                 str,
-                FontId { size: 13f32, family: FontFamily::Monospace },
+                font(14f32, FontFamily::Monospace),
                 match self.settings.dark_mode { true => Color32::WHITE, false => Color32::BLACK }
             );
         };
