@@ -104,16 +104,7 @@ impl Scale {
         String::from(NOTE_NUMBERS[n % TOTAL_TONES])
     }
     pub fn prefers_flats(&self) -> bool {
-        match self.typ {
-            ScaleType::Major => match self.key {
-                0|1|3|5|8|10 => true,
-                _ => false,
-            },
-            ScaleType::Minor => match self.key {
-                0|2|3|5|7|9|10 => true,
-                _ => false,
-            },
-        }
+        prefers_flats(self.typ, self.key)
     }
     pub fn color_lookup(dark_mode:bool, typ:NoteType) -> (Color32, Color32) {
         match dark_mode {
@@ -222,5 +213,29 @@ impl Scale {
             NoteMarker::Numbers => self.get_note_number(n),
             NoteMarker::Debug => note_0_to_11.to_string(),
         })
+    }
+    pub fn scale_name(&self) -> &str {
+        &scale_name(self.siz)
+    }
+}
+pub fn scale_name(s:ScaleSize) -> &'static str {
+    match s {
+        ScaleSize::Blues => "Blues scale",
+        ScaleSize::Pentatonic => "Pentatonic scale",
+        ScaleSize::Diatonic => "Natural scale",
+        ScaleSize::TriadsOnly => "triads",
+        ScaleSize::RootOnly => "roots",
+    }
+}
+pub fn prefers_flats(t:ScaleType, k:usize) -> bool {
+    match t {
+        ScaleType::Major => match k {
+            0|1|3|5|8|10 => true,
+            _ => false,
+        },
+        ScaleType::Minor => match k {
+            0|2|3|5|7|9|10 => true,
+            _ => false,
+        },
     }
 }
