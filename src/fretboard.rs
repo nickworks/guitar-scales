@@ -219,15 +219,6 @@ impl FretboardApp {
             // render toolbar:
             ui.horizontal(|ui|{
                 ui.set_height(20f32);
-                ComboBox::from_id_source("instrument")
-                    .selected_text(format!("{}", &self.instrument().name))
-                    .width(100f32)
-                    .truncate()
-                    .show_ui(ui, |inner_ui| {
-                        for i in 0..self.instruments.len() {
-                            inner_ui.selectable_value(&mut self.current_instrument, i, &self.instruments[i].name);
-                        }
-                    });
                 let mut show_settings = self.open_panel == Panel::ViewSettings;
                 if ui.toggle_value(&mut show_settings, "👁 Settings").clicked(){
                     self.open_panel = match self.open_panel {
@@ -242,6 +233,19 @@ impl FretboardApp {
                         _ => Panel::Instrument,
                     };
                 }
+                let mut show_legend = self.settings.show_legend;
+                if ui.toggle_value(&mut show_legend, "🎵 Legend").clicked() {
+                    self.settings.show_legend = !self.settings.show_legend;
+                }
+                ComboBox::from_id_source("instrument")
+                    .selected_text(format!("{}", &self.instrument().name))
+                    .width(100f32)
+                    .truncate()
+                    .show_ui(ui, |inner_ui| {
+                        for i in 0..self.instruments.len() {
+                            inner_ui.selectable_value(&mut self.current_instrument, i, &self.instruments[i].name);
+                        }
+                    });
             });
             ui.add_space(3.0);
         });
@@ -564,7 +568,7 @@ impl FretboardApp {
     fn draw_legend(&self, rect:Rect, painter:Painter){
         let m = 10f32;
         let w = 250f32;
-        let h = 165f32;
+        let h = 5f32 * 35f32 + 15f32;
         let bg = Rect {
             min: Pos2 { x: rect.right() - m - w, y: rect.bottom() - m - h },
             max: Pos2 { x: rect.right() - m, y: rect.bottom() - m },
@@ -586,11 +590,11 @@ impl FretboardApp {
                 match self.settings.dark_mode { true => Color32::WHITE, false => Color32::BLACK }
             );
         };
-        draw_dot(20f32, 20f32, NoteType::Root, "Root notes");
-        draw_dot(20f32, 80f32, NoteType::InPentatonic, "Notes in scale (penta)");
-        draw_dot(20f32, 140f32, NoteType::InDiatonic, "Notes in scale (natural)");
-        draw_dot(20f32, 50f32, NoteType::Triad, "Triad notes");
-        draw_dot(20f32, 110f32, NoteType::Blue, "Blue notes");
+        draw_dot(25f32, 25f32, NoteType::Root, "Root notes");
+        draw_dot(25f32, 60f32, NoteType::Triad, "Triad notes");
+        draw_dot(25f32, 95f32, NoteType::InPentatonic, "Notes in scale (penta)");
+        draw_dot(25f32, 130f32, NoteType::Blue, "Blue notes");
+        draw_dot(25f32, 165f32, NoteType::InDiatonic, "Notes in scale (natural)");
 
     }
     fn stroke(&self, weight:f32) -> Stroke {
