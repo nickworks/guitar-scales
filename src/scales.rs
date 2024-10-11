@@ -3,7 +3,7 @@
 use egui::Color32;
 use strum_macros::EnumIter;
 
-use crate::fretboard::NoteMarker;
+use crate::fretboard::{NoteMarker,NoteColors};
 
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
 pub enum ScaleSize {
@@ -106,23 +106,45 @@ impl Scale {
     pub fn prefers_flats(&self) -> bool {
         prefers_flats(self.typ, self.key)
     }
-    pub fn color_lookup(dark_mode:bool, typ:NoteType) -> (Color32, Color32) {
-        match dark_mode {
-            true => match typ {
-                NoteType::Root => (Color32::WHITE, Color32::BLACK),
-                NoteType::Blue => (Color32::BLUE, Color32::WHITE),
-                NoteType::Triad => (Color32::GOLD, Color32::BLACK),
-                NoteType::InPentatonic => (Color32::KHAKI, Color32::BLACK),
-                NoteType::InDiatonic => (Color32::RED, Color32::WHITE),
-                _ => (Color32::DARK_GRAY, Color32::BLACK),
+    pub fn color_lookup(note_colors:NoteColors, dark_mode:bool, typ:NoteType, octave:usize) -> (Color32, Color32) {
+        match note_colors {
+            NoteColors::ByTone => match dark_mode {
+                true => match typ {
+                    NoteType::Root => (Color32::WHITE, Color32::BLACK),
+                    NoteType::Blue => (Color32::BLUE, Color32::WHITE),
+                    NoteType::Triad => (Color32::GOLD, Color32::BLACK),
+                    NoteType::InPentatonic => (Color32::KHAKI, Color32::BLACK),
+                    NoteType::InDiatonic => (Color32::RED, Color32::WHITE),
+                    _ => (Color32::DARK_GRAY, Color32::BLACK),
+                },
+                false => match typ {
+                    NoteType::Root => (Color32::BLACK, Color32::WHITE),
+                    NoteType::Blue => (Color32::BLUE, Color32::WHITE),
+                    NoteType::Triad => (Color32::GOLD, Color32::BLACK),
+                    NoteType::InPentatonic => (Color32::KHAKI, Color32::BLACK),
+                    NoteType::InDiatonic => (Color32::RED, Color32::WHITE),
+                    _ => (Color32::LIGHT_GRAY, Color32::BLACK),
+                },
             },
-            false => match typ {
-                NoteType::Root => (Color32::BLACK, Color32::WHITE),
-                NoteType::Blue => (Color32::BLUE, Color32::WHITE),
-                NoteType::Triad => (Color32::GOLD, Color32::BLACK),
-                NoteType::InPentatonic => (Color32::KHAKI, Color32::BLACK),
-                NoteType::InDiatonic => (Color32::RED, Color32::WHITE),
-                _ => (Color32::LIGHT_GRAY, Color32::BLACK),
+            NoteColors::ByOctave => match dark_mode {
+                true =>  match octave {
+                    0 => (Color32::BLUE, Color32::WHITE),
+                    1 => (Color32::GOLD, Color32::BLACK),
+                    3 => (Color32::RED, Color32::WHITE),
+                    4 => (Color32::KHAKI, Color32::BLACK),
+                    5|_ => (Color32::WHITE, Color32::BLACK),
+                },
+                false => match octave {
+                    0 => (Color32::BLUE, Color32::WHITE),
+                    1 => (Color32::GOLD, Color32::BLACK),
+                    3 => (Color32::RED, Color32::WHITE),
+                    4 => (Color32::KHAKI, Color32::BLACK),
+                    5|_ => (Color32::WHITE, Color32::BLACK),
+                },
+            },
+            NoteColors::Monochrome => match dark_mode {
+                true => (Color32::LIGHT_GRAY, Color32::BLACK),
+                false => (Color32::DARK_GRAY, Color32::BLACK),
             },
         }
     }
@@ -161,12 +183,13 @@ impl Scale {
     fn normalize(&self, note_as_int:usize) -> usize{
         (note_as_int + TOTAL_TONES).checked_sub(self.key).unwrap_or(0) % TOTAL_TONES
     }
-    pub fn get_bubble(&self, dark_mode:bool, note_as_int:usize, note_marker:NoteMarker) -> Bubble {
+    pub fn get_bubble(&self, dark_mode:bool, note_colors:NoteColors, note_as_int:usize, note_marker:NoteMarker) -> Bubble {
         let note_0_to_11 = self.normalize(note_as_int);
         let is_note_in_scale = self.is_note_in_scale(note_as_int as i16);
-        
+
+        let octave = note_as_int / TOTAL_TONES;
         let typ = self.get_note_type(note_0_to_11);
-        let colors = Scale::color_lookup(dark_mode, typ);
+        let colors = Scale::color_lookup(note_colors, dark_mode, typ, octave);
 
         let bubble_letter = Bubble::new(colors, self.get_note_letter(note_as_int));
         let bubble_number = Bubble::new(colors, self.get_note_number(note_0_to_11));
@@ -187,7 +210,7 @@ impl Scale {
             },
         };
     }
-    pub fn get_bubble_from(&self, dark_mode:bool, note:NoteType, marker:NoteMarker) -> Bubble {
+    pub fn get_bubble_from(&self, note_colors:NoteColors, dark_mode:bool, note:NoteType, marker:NoteMarker) -> Bubble {
         let note_0_to_11:usize =  match self.typ {
             ScaleType::Minor => match note {
                 NoteType::Root => 0,
@@ -207,7 +230,7 @@ impl Scale {
             },
         };
         let n = (note_0_to_11 as i8 + self.key as i8) as usize % TOTAL_TONES;
-        let colors = Scale::color_lookup(dark_mode, note);
+        let colors = Scale::color_lookup(note_colors, dark_mode, note, 0usize);
         Bubble::new(colors, match marker {
             NoteMarker::AllNotes | NoteMarker::Letters => self.get_note_letter(n),
             NoteMarker::Numbers => self.get_note_number(n),

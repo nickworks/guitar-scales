@@ -19,6 +19,12 @@ pub enum NoteMarker {
     Debug,
 }
 #[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
+pub enum NoteColors {
+    Monochrome,
+    ByTone,
+    ByOctave,
+}
+#[derive(Debug, EnumIter, PartialEq, Clone, Copy)]
 enum StringStyle {
     String,
     Cells,
@@ -77,6 +83,7 @@ struct DrawSettings {
     frets: usize,
     fret_marks: FretMarker,
     note_marks: NoteMarker,
+    note_colors: NoteColors,
     string_style: StringStyle,
     space_string: f32,
     space_fret: f32,
@@ -113,6 +120,7 @@ impl Default for FretboardApp {
                 frets: 12,
                 fret_marks: FretMarker::Dots,
                 note_marks: NoteMarker::Letters,
+                note_colors: NoteColors::ByTone,
                 string_style: StringStyle::String,
                 space_string: 50.0,
                 space_fret: 50.0,
@@ -301,6 +309,16 @@ impl FretboardApp {
                         }
                     });
                 ui.end_row();
+                ui.label("note colors");
+                ComboBox::from_id_source("note_colors")
+                    .selected_text(format!("{:?}", self.settings.note_colors))
+                    .width(100.0)
+                    .show_ui(ui, |inner_ui|{
+                        for nc in NoteColors::iter() {
+                            inner_ui.selectable_value(&mut self.settings.note_colors, nc, format!("{:?}", nc));
+                        }
+                    });
+                ui.end_row();
                 ui.label("string style");
                 ComboBox::from_id_source("string_style")
                     .selected_text(format!("{:?}", self.settings.string_style))
@@ -466,7 +484,7 @@ impl FretboardApp {
 
                 // paint notes:
                 for fret in 0..(num_frets) {
-                    let b = self.scale.get_bubble(self.settings.dark_mode, string + fret, self.settings.note_marks);
+                    let b = self.scale.get_bubble(self.settings.dark_mode, self.settings.note_colors, string + fret, self.settings.note_marks);
                     let pos = match self.settings.vertical {
                         false => Pos2 { x: offset + fret as f32 * self.settings.space_fret, y: cell_middle },
                         true => Pos2 { x: cell_middle, y: offset + fret as f32 * self.settings.space_fret },
@@ -579,7 +597,7 @@ impl FretboardApp {
         }, self.stroke(1f32));
         let draw_dot = |x:f32, y:f32, n, str|{
             let pos = Pos2 { x: bg.min.x + x, y: bg.min.y + y };
-            let b = self.scale.get_bubble_from(self.settings.dark_mode, n, self.settings.note_marks);
+            let b = self.scale.get_bubble_from(self.settings.note_colors, self.settings.dark_mode, n, self.settings.note_marks);
             painter.circle_filled(pos, self.settings.dot_size, b.color);
             painter.text(pos, Align2::CENTER_CENTER, b.text, font_glyph(), b.text_color);
             painter.text(
