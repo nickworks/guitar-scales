@@ -2,6 +2,7 @@
 
 mod scales;
 mod fretboard;
+mod instruments;
 use crate::fretboard::FretboardApp;
 
 #[cfg(not(target_arch = "wasm32"))]
