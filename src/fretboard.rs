@@ -470,10 +470,10 @@ impl FretboardApp {
             min: Pos2 { x: rect.right() - m - w, y: rect.bottom() - m - h },
             max: Pos2 { x: rect.right() - m, y: rect.bottom() - m },
         };
-        painter.rect(bg, Rounding::same(4f32), match self.settings.dark_mode {
+        painter.rect(bg, CornerRadius::same(4u8), match self.settings.dark_mode {
             true => Color32::DARK_GRAY,
             false => Color32::LIGHT_GRAY,
-        }, self.stroke(1f32));
+        }, self.stroke(1f32), StrokeKind::Middle);
         let draw_dot = |x:f32, y:f32, n, str|{
             let pos = Pos2 { x: bg.min.x + x, y: bg.min.y + y };
             let b = self.scale.get_bubble_from(self.settings.note_colors, self.settings.dark_mode, n, self.settings.note_marks);
